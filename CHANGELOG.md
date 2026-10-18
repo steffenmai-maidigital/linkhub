@@ -8,6 +8,12 @@ tragen Nummern nach MAJOR.MINOR.PATCH.
 
 ## [Unveröffentlicht]
 
+## [26101802] — 2026-10-18
+
+### Dokumentation
+
+- Beiträge: Fehler, Ideen und Fragen als Issue melden; Pull Requests sind derzeit nur für eingeladene Mitwirkende möglich (`CONTRIBUTING.md`).
+
 ## [26101801] — 2026-10-18
 
 ### Neu
