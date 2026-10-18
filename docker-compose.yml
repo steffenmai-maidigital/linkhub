@@ -1,0 +1,128 @@
+# LinkHub — Compose-Projekt (Linux-Server, Synology Container Manager).
+# Kommt OHNE .env-Datei aus — alle wichtigen Werte stehen hier als
+# Umgebungsvariablen und können direkt in der DSM-Oberfläche gepflegt werden.
+#
+# Datenhaltung:
+#   app-data / app-storage  — Named Volumes (legt Docker selbst an)
+#   ./backups               — EXTRA Ordner für Backups, als einziger
+#                             Bind-Mount; bitte vor dem ersten Start in der
+#                             File Station im Projektordner anlegen
+#
+# LinkHub — Compose project (Linux server, Synology Container Manager).
+# Works WITHOUT an .env file — all important values are set here as
+# environment variables and can be maintained directly in the DSM interface.
+#
+# Data storage:
+#   app-data / app-storage  — named volumes (created by Docker itself)
+#   ./backups               — EXTRA folder for backups, the only
+#                             bind mount; please create it in File Station
+#                             in the project folder before the first start
+services:
+  app:
+    # Jeder Bau erzeugt linkhub:latest; eine veröffentlichte Version bekommt zusätzlich
+    # die Versionsnummer (JJMMTTNN) als Tag an. ZURÜCK zu einer alten Version:
+    # bei beiden Diensten „build: .“ auskommentieren und bei „image:“ die
+    # alte Nummer eintragen, z. B. linkhub:26101701.
+    # Every build creates linkhub:latest; a published version additionally gets
+    # the version number (JJMMTTNN) as a tag. BACK to an old version:
+    # comment out "build: ." in both services and enter the old number
+    # under "image:", e.g. linkhub:26101701.
+    # Fertiges Abbild statt selbst bauen (sobald das Repo öffentlich ist):
+    # Ready-made image instead of building it yourself (once the repo is public):
+    # image: ghcr.io/steffenmai-maidigital/linkhub:latest
+    image: linkhub:latest
+    build: .
+    container_name: linkhub
+    ports:
+      - "7280:80"
+    environment: &app-env
+      # ----- Demo-Modus: true = Demo-Konten und Beispieldaten
+      #       (Anmeldung admin/admin, manager/manager)
+      # ----- Demo mode: true = demo accounts and sample data
+      #       (sign-in admin/admin, manager/manager)
+      DEMO_MODE: "true"
+      TEST_MODE: "false"
+      # Hinter einem Reverse Proxy hier die öffentliche URL eintragen,
+      # z. B. https://links.firma.de
+      # Behind a reverse proxy, enter the public URL here,
+      # e.g. https://links.firma.de
+      APP_NAME: "LinkHub"
+      APP_URL: "http://localhost:7280"
+      # Reverse Proxys, deren Angaben (echte IP, HTTPS) geglaubt werden.
+      # Standard: nur interne Netze. "*" = allen vertrauen (nicht empfohlen).
+      # Reverse proxies whose details (real IP, HTTPS) are trusted.
+      # Default: internal networks only. "*" = trust all (not recommended).
+      TRUSTED_PROXIES: "127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,fc00::/7"
+      # Bei Problemen kurzzeitig auf "true" stellen, dann zeigt die Seite
+      # die genaue Fehlermeldung statt "Server Error" (danach zurückstellen!)
+      # If there are problems, briefly set to "true"; the page then shows
+      # the exact error message instead of "Server Error" (reset afterwards!)
+      APP_DEBUG: "false"
+      DB_DATABASE: "/data/linkhub.sqlite"
+      BACKUP_PATH: "/backups"
+      # Link zum Quellcode in der Fußzeile (AGPL); bei eigenen Änderungen auf euer Repo zeigen
+      # Link to the source code in the footer (AGPL); with your own changes, point to your repo
+      SOURCE_URL: ""
+      # ----- Einmaliger Datenbank-Reset: auf "1" setzen, Projekt neu erstellen,
+      #       nach erfolgreichem Start UNBEDINGT wieder auf "0" stellen,
+      #       sonst wird die Datenbank bei jedem Start geleert!
+      # ----- One-off database reset: set to "1", recreate the project,
+      #       after a successful start ALWAYS set it back to "0",
+      #       otherwise the database is emptied on every start!
+      FRESH_DB: "0"
+      # APP_KEY wird beim ersten Start erzeugt und in /data/.app_key abgelegt.
+      # APP_KEY is generated on the first start and stored in /data/.app_key.
+      # ----- Normalbetrieb: DEMO_MODE auf "false". Der erste Administrator
+      #       wird als eigenes Konto angelegt; ADMIN_PASSWORD leer = zufälliges
+      #       Startpasswort im Container-Protokoll (docker compose logs app).
+      # ----- Normal operation: DEMO_MODE to "false". The first administrator
+      #       is created as an own account; ADMIN_PASSWORD empty = random
+      #       initial password in the container log (docker compose logs app).
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: ""
+      # ----- Verzeichnis (Active Directory / LDAP) ist optional und wird in
+      #       der Oberfläche unter Einstellungen → Anmeldung eingerichtet.
+      #       Startwerte lassen sich auch hier setzen:
+      # ----- The directory (Active Directory / LDAP) is optional and is set up
+      #       in the interface under Settings → Sign-in.
+      #       Initial values can also be set here:
+      # LDAP_HOST: "dc01.firma.local"
+      # LDAP_PORT: "636"
+      # LDAP_SSL: "true"
+      # LDAP_BASE_DN: "DC=firma,DC=local"
+      # LDAP_USERNAME: "CN=svc-linkhub,OU=Service,DC=firma,DC=local"
+      # LDAP_PASSWORD: "geheim"
+      # AD_GROUP_ADMINS: "LinkHub-Admins"
+      # AD_GROUP_MANAGERS: "LinkHub-Manager"
+    volumes:
+      - app-data:/data
+      - app-storage:/var/www/html/storage
+      - app-uploads:/var/www/html/public/uploads
+      - ./backups:/backups
+    restart: unless-stopped
+
+  # Führt den Laravel-Zeitplan aus (nächtliches Backup)
+  # Runs the Laravel schedule (nightly backup)
+  scheduler:
+    image: linkhub:latest
+    build: .
+    container_name: linkhub-scheduler
+    command: php artisan schedule:work
+    environment:
+      <<: *app-env
+      # Einrichtung/Migration übernimmt nur der App-Container
+      # Setup/migration is done by the app container only
+      SKIP_SETUP: "1"
+    volumes:
+      - app-data:/data
+      - app-storage:/var/www/html/storage
+      - app-uploads:/var/www/html/public/uploads
+      - ./backups:/backups
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  app-storage:
+  app-uploads:

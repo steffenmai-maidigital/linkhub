@@ -1,0 +1,93 @@
+# LinkHub TESTSYSTEM — zweite, vollständig getrennte Instanz.
+#
+# Einsatz: Updates gefahrlos ausprobieren, Schulungen, Was-wäre-wenn-Pflege.
+#   - eigener Port 7281 (Produktion: 7280)
+#   - eigene Volumes (app-data-test / app-storage-test) — berührt die
+#     Produktionsdaten NICHT
+#   - deutlich sichtbares TESTSYSTEM-Banner in der Oberfläche
+#   - der Backup-Ordner der PRODUKTION ist read-only eingebunden; unter
+#     Einstellungen → Testsystem lässt sich damit per Klick der letzte
+#     Produktionsstand einspielen
+#
+# Start im Container Manager als EIGENES Projekt (z. B. "linkhub-test")
+# mit dieser Datei; Ordner backups-test/ vorher in der File Station anlegen.
+#
+# LinkHub TEST SYSTEM — a second, fully separate instance.
+#
+# Use: try out updates safely, training, what-if maintenance.
+#   - own port 7281 (production: 7280)
+#   - own volumes (app-data-test / app-storage-test) — does NOT touch the
+#     production data
+#   - clearly visible TESTSYSTEM banner in the interface
+#   - the PRODUCTION backup folder is mounted read-only; under
+#     Settings → Test system the latest production state can be
+#     restored with one click
+#
+# Start in Container Manager as a SEPARATE project (e.g. "linkhub-test")
+# with this file; create the folder backups-test/ in File Station beforehand.
+services:
+  app:
+    # Eigenes Abbild, damit ein Testbau nie linkhub:latest der Produktion ersetzt
+    # Own image, so a test build never replaces the production linkhub:latest
+    image: linkhub:test
+    build: .
+    container_name: linkhub-test
+    ports:
+      - "7281:80"
+    environment: &app-env
+      TEST_MODE: "true"
+      # im Test meist praktisch; wie Produktion einstellbar
+      # usually handy in tests; configurable like production
+      DEMO_MODE: "true"
+      APP_NAME: "LinkHub TEST"
+      APP_URL: "http://localhost:7281"
+      # Reverse Proxys, deren Angaben (echte IP, HTTPS) geglaubt werden.
+      # Standard: nur interne Netze. "*" = allen vertrauen (nicht empfohlen).
+      # Reverse proxies whose details (real IP, HTTPS) are trusted.
+      # Default: internal networks only. "*" = trust all (not recommended).
+      TRUSTED_PROXIES: "127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,fc00::/7"
+      # Bei Problemen kurzzeitig auf "true" stellen, dann zeigt die Seite
+      # die genaue Fehlermeldung statt "Server Error" (danach zurückstellen!)
+      # If there are problems, briefly set to "true"; the page then shows
+      # the exact error message instead of "Server Error" (reset afterwards!)
+      APP_DEBUG: "false"
+      DB_DATABASE: "/data/linkhub.sqlite"
+      BACKUP_PATH: "/backups"
+      # Link zum Quellcode in der Fußzeile (AGPL); bei eigenen Änderungen auf euer Repo zeigen
+      # Link to the source code in the footer (AGPL); with your own changes, point to your repo
+      SOURCE_URL: ""
+      FRESH_DB: "0"
+      # APP_KEY wird beim ersten Start erzeugt (eigener Schlüssel im Test-Volume)
+      # LDAP wie in der Produktions-Compose pflegen, wenn AD getestet werden soll
+      # APP_KEY is generated on the first start (own key in the test volume)
+      # Maintain LDAP as in the production Compose file if AD is to be tested
+    volumes:
+      - app-data-test:/data
+      - app-storage-test:/var/www/html/storage
+      - app-uploads-test:/var/www/html/public/uploads
+      - ./backups-test:/backups
+      - ./backups:/prod-backups:ro   # Produktions-Backups, nur lesend / production backups, read-only
+    restart: unless-stopped
+
+  scheduler:
+    image: linkhub:test
+    build: .
+    container_name: linkhub-test-scheduler
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      <<: *app-env
+      SKIP_SETUP: "1"
+    volumes:
+      - app-data-test:/data
+      - app-storage-test:/var/www/html/storage
+      - app-uploads-test:/var/www/html/public/uploads
+      - ./backups-test:/backups
+      - ./backups:/prod-backups:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  app-data-test:
+  app-storage-test:
+  app-uploads-test:
