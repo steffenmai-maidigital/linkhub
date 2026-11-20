@@ -102,13 +102,13 @@ class AuthController extends Controller
         if ($policy !== Mfa::OFF && $user->hasTwoFactor()) {
             $request->session()->put('login.2fa', [
                 'id' => $user->id, 'until' => now()->addMinutes(5)->timestamp,
-                'groups' => $groups, 'policy' => $policy, 'remember' => $request->boolean('remember'),
+                'groups' => $groups, 'policy' => $policy,
             ]);
 
             return redirect()->route('login.code');
         }
 
-        return $this->signIn($request, $user, $groups, $policy, $request->boolean('remember'));
+        return $this->signIn($request, $user, $groups, $policy);
     }
 
     /**
@@ -204,7 +204,7 @@ class AuthController extends Controller
 
         $p = $request->session()->pull('login.2fa');
 
-        return $this->signIn($request, $user, $p['groups'] ?? [], $p['policy'] ?? Mfa::OPTIONAL, (bool) ($p['remember'] ?? false));
+        return $this->signIn($request, $user, $p['groups'] ?? [], $p['policy'] ?? Mfa::OPTIONAL);
     }
 
     /**
@@ -212,11 +212,18 @@ class AuthController extends Controller
      *
      * Establish the session — after password or directory and, if required, the second factor
      */
-    private function signIn(Request $request, User $user, array $groups, string $policy, bool $remember)
+    private function signIn(Request $request, User $user, array $groups, string $policy)
     {
-        Auth::login($user, $remember);
+        // Ohne „Angemeldet bleiben“: ein Erinnerungs-Cookie würde Verzeichnis,
+        // Sperre, Passwortwechsel und Zwei-Faktor-Pflicht über Monate umgehen
+        // Without "remember me": a remember cookie would bypass the directory,
+        // the lock, password changes and mandatory two-factor for months
+        Auth::login($user);
         $request->session()->regenerate();
         $request->session()->put('mfa_policy', $policy);
+        // Gruppen der Anmeldung: EnsureMfa prüft die Richtlinie damit bei jeder Anfrage neu
+        // Groups of the sign-in: EnsureMfa re-checks the policy with them on every request
+        $request->session()->put('mfa_groups', $groups);
         // Pflicht ohne eingerichteten zweiten Faktor: erst einrichten (Middleware mfa)
         // Mandatory without a second factor set up: set it up first (middleware mfa)
         $request->session()->put('mfa_pending', $policy === Mfa::REQUIRED && ! $user->hasTwoFactor());
@@ -225,6 +232,12 @@ class AuthController extends Controller
         activity('Auth')->causedBy($user)
             ->withProperties($groups ? ['groups' => array_map([Directory::class, 'cn'], $groups)] : [])
             ->log($user->isLocal() ? 'Anmeldung (eigenes Konto)' : 'Anmeldung (Verzeichnis)');
+
+        // Startpasswort oder Zwei-Faktor offen: gleich auf die Konto-Seite, die erklärt, was fehlt
+        // Initial password or two-factor pending: straight to the account page, which explains what is missing
+        if ($user->mustChangePassword() || $request->session()->get('mfa_pending')) {
+            return redirect()->route('account');
+        }
 
         return redirect()->intended(route('home'));
     }
@@ -235,8 +248,10 @@ class AuthController extends Controller
         if (! $p || ($p['until'] ?? 0) < time()) {
             return null;
         }
+        $user = User::find($p['id']);
 
-        return User::find($p['id']);
+        // zwischen Passwort und Code gesperrt: neu anmelden / locked between password and code: sign in again
+        return $user?->active ? $user : null;
     }
 
     public function logout(Request $request)

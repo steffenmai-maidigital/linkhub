@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Services\LicenseService;
 use App\Support\Directory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -16,8 +17,7 @@ use Illuminate\Validation\ValidationException;
  *   3 · Rollen aus Gruppen
  *   4 · Lizenz
  *   5 · Backup
- *   6 · Fuchs-Helfer
- *   7 · Impressum und Datenschutz
+ *   6 · Impressum und Datenschutz
  *
  * Settings (one page, numbered panels following the CrewGate pattern):
  *   1 · Company & appearance (name replaces "LinkHub", logo, colours, footer text)
@@ -25,8 +25,7 @@ use Illuminate\Validation\ValidationException;
  *   3 · Roles from groups
  *   4 · Licence
  *   5 · Backup
- *   6 · Fox helper
- *   7 · Imprint (legal notice) and privacy policy
+ *   6 · Imprint (legal notice) and privacy policy
  */
 class SettingsController extends Controller
 {
@@ -36,9 +35,11 @@ class SettingsController extends Controller
         'ad_group_admins', 'ad_group_managers',
         'license_company', 'license_key',
         'backup_retention_days',
-        'fox_enabled',
         'mfa_admin', 'mfa_manager', 'mfa_other', 'mfa_required_groups',
     ];
+
+    /** Gruppen des Verzeichnisses, beim Speichern zum DN aufgelöst / Directory groups, resolved to their DN on save */
+    private const GROUP_KEYS = ['ad_group_admins', 'ad_group_managers', 'mfa_required_groups'];
 
     public function index()
     {
@@ -65,8 +66,10 @@ class SettingsController extends Controller
             'brand_footer_color' => ['nullable', $hex],
             'brand_footer_text'  => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,svg,webp', 'max:2048'],
-            'ad_group_admins'   => ['nullable', 'string', 'max:255'],
-            'ad_group_managers' => ['nullable', 'string', 'max:255'],
+            // Platz für den vollständigen DN, zu dem ein Name beim Speichern wird
+            // Room for the full DN a name turns into on save
+            'ad_group_admins'   => ['nullable', 'string', 'max:1000'],
+            'ad_group_managers' => ['nullable', 'string', 'max:1000'],
             'license_company' => ['nullable', 'string', 'max:150'],
             'license_key'     => ['nullable', 'string', 'max:20'],
             'backup_retention_days' => ['required', 'integer', 'between:1,3650'],
@@ -96,25 +99,50 @@ class SettingsController extends Controller
             ]);
         }
 
-        // Impressum und Datenschutz (Standard 03)
-        // Imprint (legal notice) and privacy policy (Standard 03)
-        \App\Support\LegalPages::save($request);
-
         // Harte Untergrenze der Backup-Aufbewahrung durchsetzen
         // Enforce the hard minimum of backup retention
         $data['backup_retention_days'] = (string) max(
             (int) config('linkhub.backup_min_retention_days'),
             (int) $data['backup_retention_days']
         );
-        $data['fox_enabled'] = $request->boolean('fox_enabled') ? '1' : '0';
 
-        foreach (self::KEYS as $key) {
-            Setting::set($key, $data[$key] ?? null);
-        }
+        // Alles oder nichts: Ist eine Gruppe mehrdeutig, bleibt keine Änderung
+        // gespeichert, das Formular zeigt die Eingaben mit dem Fehler am Feld
+        // All or nothing: if a group is ambiguous, no change stays saved, the
+        // form shows the entries with the error at the field
+        DB::transaction(function () use ($request, $data) {
+            // Impressum und Datenschutz (Standard 03)
+            // Imprint (legal notice) and privacy policy (Standard 03)
+            \App\Support\LegalPages::save($request);
 
-        // Anmeldung über das Verzeichnis (Standard 09)
-        // Sign-in via the directory (Standard 09)
-        Directory::save($request->only(Directory::KEYS) + ['ldap_enabled' => $request->boolean('ldap_enabled'), 'ldap_certificate' => $request->boolean('ldap_certificate')]);
+            foreach (self::KEYS as $key) {
+                Setting::set($key, $data[$key] ?? null);
+            }
+
+            // Anmeldung über das Verzeichnis (Standard 09)
+            // Sign-in via the directory (Standard 09)
+            Directory::save($request->only(Directory::KEYS) + ['ldap_enabled' => $request->boolean('ldap_enabled'), 'ldap_certificate' => $request->boolean('ldap_certificate')]);
+
+            // Gruppen eindeutig: ein Name wird mit den eben gespeicherten Verbindungsdaten
+            // zum DN; gibt es ihn in mehreren OUs, kommt ein Fehler am Feld
+            // Unambiguous groups: a name becomes its DN with the connection settings just
+            // saved; if it exists in several OUs, an error appears at the field
+            $errors = [];
+            foreach (self::GROUP_KEYS as $key) {
+                if (blank($data[$key] ?? null)) {
+                    continue;
+                }
+                $resolved = Directory::resolveGroups($data[$key]);
+                if ($resolved['error']) {
+                    $errors[$key] = $resolved['error'];
+                } else {
+                    Setting::set($key, $resolved['value']);
+                }
+            }
+            if ($errors) {
+                throw ValidationException::withMessages($errors);
+            }
+        });
 
         // Firmenlogo hochladen bzw. entfernen (public/uploads, per Volume persistent)
         // Upload or remove the company logo (public/uploads, persistent via volume)
@@ -177,7 +205,16 @@ class SettingsController extends Controller
             ]);
         }
 
-        $ext = strtolower($file->getClientOriginalExtension() ?: ($file->guessExtension() ?: 'png'));
+        // Endung aus dem geprüften Inhalt, nie aus dem Dateinamen des Browsers:
+        // sonst würde z. B. „logo.html“ mit Bildinhalt als HTML ausgeliefert
+        // Extension from the checked content, never from the browser's file name:
+        // otherwise e.g. "logo.html" with image content would be served as HTML
+        $ext = match ($file->guessExtension()) {
+            'jpg', 'jpeg' => 'jpg',
+            'svg'         => 'svg',
+            'webp'        => 'webp',
+            default       => 'png',
+        };
         $name = 'logo-'.time().'.'.$ext;
 
         try {

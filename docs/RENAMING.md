@@ -20,6 +20,11 @@ Shared building blocks (Directory, Mfa, TwoFactor, Fox, LegalPages,
 ProductInfo, ErrorPage) use the same
 names in CrewGate, LinkHub and BilDaBooky.
 
+The fox helper (Rua) has since been removed from LinkHub; the rows about it
+below only matter for old forks and backups (the migration
+`0004_01_01_000000_remove_fox_helper.php` drops `users.fox` and
+`fox_enabled`).
+
 ## Files and folders
 
 | old | new |

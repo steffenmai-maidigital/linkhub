@@ -32,11 +32,12 @@
 
 ## 2. Adjust the settings
 
-For a trial everything can stay as it is: LinkHub starts in demo mode. For
+For a trial set `DEMO_MODE: "true"`; LinkHub then starts in demo mode (it ships
+with `"false"`). For
 production open `docker-compose.yml` with the DSM **Text Editor** package, or
 edit it later in Container Manager under **Project → YAML configuration**:
 
-- `DEMO_MODE: "false"`
+- `DEMO_MODE: "false"` (the default; set it back after a trial)
 - `APP_URL: "https://links.firma.de"` (or for now `http://<NAS-IP>:7280`)
 - the `LDAP_*` and `AD_GROUP_*` lines: remove the `#` at the start of the line
   and enter your own values. What goes where is explained in
@@ -58,9 +59,10 @@ running (green). Then open `http://<NAS-IP>:7280` in the browser.
 
 ## 4. First steps
 
-In demo mode log in at the top right as `admin` / `admin`. For production
-log in with an account from the administrators group, fill in **Settings**
-and then maintain **Structure** and **Applications**. The detailed order is
+In demo mode log in at the top right as `admin` / `admin`. In production log
+in as `admin` with the initial password from **Project `linkhub` → Log** and
+change it under **My account**; nothing else is available before that. Then
+fill in **Settings** and maintain **Structure** and **Applications**. The detailed order is
 in [docker.md](docker.md#33-set-it-up-in-the-web-interface).
 
 ## 5. HTTPS via the DSM reverse proxy

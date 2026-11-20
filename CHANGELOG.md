@@ -8,6 +8,67 @@ tragen Nummern nach MAJOR.MINOR.PATCH.
 
 ## [Unveröffentlicht]
 
+## [26112001] — 2026-11-20
+
+### Neu
+
+- **Startpasswort muss geändert werden:** Wer sich mit einem Passwort anmeldet, das LinkHub oder ein Administrator vergeben hat, landet auf **Mein Konto** und erreicht bis zur Änderung nur diese Seite und das Abmelden, auch keine Hilfe. Das gilt für den ersten Administrator mit Zufallspasswort aus dem Protokoll, für neu angelegte Konten, nach „Passwort zurücksetzen“, für ein Passwort aus dem Bearbeiten-Formular, für die neuen Startpasswörter der Demo-Konten nach dem Wechsel in den Normalbetrieb und nach dem Notzugang. Nicht für Verzeichniskonten, nicht im Demo-Modus und nicht für `ADMIN_PASSWORD`. Die Benutzerliste zeigt solche Konten mit dem Abzeichen „Startpasswort“. Eine neue Migration legt die Spalte `users.must_change_password` an; bestehende Konten sind nicht betroffen.
+- **Notzugang ohne zweiten Faktor:** `php artisan linkhub:admin-password [name] --disable-2fa` setzt zusätzlich die Zwei-Faktor-Anmeldung des Kontos zurück, z. B. wenn das Handy weg ist. Der Befehl legt wie bisher bei Bedarf ein eigenes Admin-Konto an; das ausgegebene Passwort ist jetzt ein Startpasswort, laufende Sitzungen des Kontos enden.
+
+### Entfernt
+
+- Der Fuchs-Helfer Rua ist weg, ohne Ersatz: keine Figur mehr unten rechts, kein Abschnitt „Fuchs-Helfer“ in den Einstellungen, kein Schalter auf der Seite **Mein Konto**. Die Einstellungen sind neu nummeriert: **6 · Impressum und Datenschutz** (vorher 7).
+- Eine neue Migration entfernt beim Start die Spalte `users.fox` und die Einstellung `fox_enabled` (auch die alten Namen `users.fuchs` und `fuchs_aktiv` aus zurückgespielten Sicherungen). Die Adresse `/account/fox` gibt es nicht mehr. Alte Merkwerte des Fuchses im Browser (`lh-fox-…`, `lh-fuchs-…`) räumt LinkHub beim nächsten Seitenaufruf selbst ab.
+
+### Geändert
+
+- **„Manual“ heißt „Anleitung“:** Auf der Kachel, in der Liste und im Formular steht in der deutschen Oberfläche jetzt „Anleitung“ statt „Manual“ (englisch weiter „Manual“).
+- Die Oberfläche siezt jetzt durchgehend; die Du-Texte des Fuchses sind entfallen. Der leere Zustand des Portals sagt, was zu tun ist: Manager bekommen den Weg zu „Neu anlegen“, bei einem leeren Filter gibt es einen Link auf alle Applikationen.
+- Fehlermeldungen in Formularen sind vollständig deutsch bzw. englisch und nennen das Feld so wie die Oberfläche („Link zur Applikation“ statt „url“). Vorher kamen einige Meldungen auf Englisch, z. B. bei einem schon vergebenen Namen oder einer falschen Passwort-Wiederholung.
+- Am Telefon: Die Tabellen der Hilfe stehen untereinander statt abgeschnitten, die Struktur-Tabellen erscheinen als Karten mit erreichbaren Knöpfen, Suchfelder haben die volle Breite, Filter und Knöpfe sind mindestens 44 px hoch.
+- Barrierefreiheit: Alle Eingabefelder haben verknüpfte Beschriftungen, der Tastaturfokus ist überall sichtbar, die gedämpfte Schriftfarbe erreicht WCAG AA, und mit „Bewegung reduzieren“ im System entfallen Animationen.
+- Die Konto-Seite zeigt auch die Rolle „Manager“. Im Audit-Log erscheinen Einträge gelöschter Konten als „gelöschtes Konto #id“ statt als „System“.
+- Meldungen des Testsystems beim Einspielen des Produktionsstands gibt es jetzt auch auf Englisch.
+- **Sicherungen enthalten den App-Schlüssel:** Nächtliche Sicherungen und „Backup jetzt erstellen“ legen `/data/.app_key` als `database/.app_key` neben die Datenbank. Damit sind Servicekonto-Passwort und Zwei-Faktor-Geheimnisse nach einer Wiederherstellung auf neuer Hardware lesbar. Die ZIP-Dateien sind nur noch für Besitzer und Gruppe lesbar (`0640`); zum Prüfen oder Kopieren auf dem Host `sudo` verwenden. Den Ordner `backups` dürfen nur Administratoren lesen. Einen Download im Browser gibt es weiterhin nicht.
+- **Testsystem:** Nach dem Einspielen des Produktionsstands meldet LinkHub ab; angemeldet wird mit einem Konto der Produktion. Vorher lief die Sitzung unter der Kennung weiter, die in der neuen Datenbank womöglich jemand anderem gehört. Aus der Sicherung liest das Testsystem nur die Datenbank, nicht den App-Schlüssel der Produktion.
+- **Gruppen beim Speichern als DN:** Unter **Einstellungen** wird ein Gruppenname bei „Gruppe: Administratoren“, „Gruppe: Manager“ und „Verzeichnisgruppen mit Pflicht“ zum vollständigen DN. Gibt es den Namen in mehreren OUs, erscheint der Fehler am Feld und nichts wird gespeichert; die Eingaben bleiben im Formular stehen. Ist das Verzeichnis nicht erreichbar oder kennt den Namen nicht, bleibt die Eingabe, wie sie ist.
+- Steht nach der Anmeldung noch ein Startpasswort oder die Einrichtung der Zwei-Faktor-Anmeldung aus, geht es direkt auf **Mein Konto** statt aufs Portal.
+- Das eigene Passwort lässt sich unter **Benutzer** nicht mehr „zurücksetzen“ (die Sitzung endete, bevor das neue Passwort zu sehen war); dafür gibt es **Mein Konto** oder das Feld im Bearbeiten-Formular.
+
+### Behoben
+
+- Verzeichniskonten mit Umlauten oder Leerzeichen im Benutzernamen ließen sich unter **Benutzer** nicht sperren und keine Zwei-Faktor-Ausnahme bekommen; das Speichern scheiterte an der Prüfung für eigene Konten.
+- `/structure/<typ>/<keine Zahl>` endete mit Fehler 500; jetzt kommt die passende Fehlerseite.
+- Eine Applikation mit einem unbekannten Bereich oder einer unbekannten Abteilung führte zu Fehler 500; jetzt erscheint eine Meldung.
+
+### Sicherheit
+
+- **Passwort des Servicekontos geht nicht mehr an fremde Server:** Ändert man unter Einstellungen → Anmeldung Server, Port, Verschlüsselung oder Servicekonto, ohne das Passwort neu einzugeben, gilt das alte nicht mehr. Bisher schickte „Verbindung testen“ es an den neuen, womöglich fremden Server (auch das Passwort aus `docker-compose.yml`). Nach einem Serverwechsel das Passwort also neu eintragen.
+- **Keine Passwörter mehr im Fehlerprotokoll:** War das Verzeichnis nicht erreichbar, stand der Anfang des eingegebenen Passworts im Stacktrace von `laravel.log`. Passwort-Parameter sind jetzt als sensibel markiert, und `docker/php.ini` setzt `zend.exception_ignore_args = On`, `expose_php = Off` und `display_errors = Off`.
+- **Verzeichnis mit Zeitlimit je Abfrage:** Ein Server, der die Verbindung annimmt und nicht antwortet, blockiert die Anmeldung nicht mehr unbegrenzt.
+- **Bestätigung im Konto gebremst:** Passwort bzw. App-Code zum Ausschalten der Zwei-Faktor-Anmeldung und für neue Wiederherstellungscodes: nach 5 Fehlversuchen 5 Minuten Pause; ein App-Code gilt nur einmal.
+- **Demo-Modus aus:** `docker-compose.yml` wird mit `DEMO_MODE: "false"` ausgeliefert; den Demo-Modus schaltet man zum Ausprobieren selbst ein.
+- **Hochgeladene Dateien:** `/uploads/` liefert nur noch Bilder aus, mit eigener Content-Security-Policy (`sandbox`) und `nosniff`; ein SVG-Logo kann so kein Skript mehr ausführen.
+- **Demo-Konten im Normalbetrieb:** Wer erst im Demo-Modus startet und dann `DEMO_MODE` auf `"false"` stellt, behielt bisher `admin/admin` und `manager/manager`. Jetzt bekommt jedes Demo-Konto, das noch sein Demo-Passwort hat, beim Start ein neues Startpasswort (einmal im Container-Protokoll; für `admin` gilt `ADMIN_PASSWORD`, wenn gesetzt). Konten ohne Admin-Rechte werden zusätzlich gesperrt.
+- **Kein „Angemeldet bleiben“ mehr:** Die Anmeldung setzte ein Erinnerungs-Cookie (400 Tage), wenn das Formular `remember` mitschickte, obwohl es dafür kein Kästchen gibt. Damit ließen sich Verzeichnis, Sperre, Passwortwechsel und Zwei-Faktor-Pflicht umgehen. Eine neue Migration löscht alle gespeicherten Erinnerungs-Tokens; alte Cookies gelten nicht mehr.
+- **Zwei-Faktor-Pflicht sofort:** Die Stufe wird bei jeder Anfrage neu bestimmt (die strengere aus Anmeldung und aktueller Richtlinie). Wird die Richtlinie strenger oder jemand Manager, geht es ohne eingerichteten zweiten Faktor gleich nur noch auf **Mein Konto**, nicht erst nach der nächsten Anmeldung.
+- Bei Stufe „aus“ lässt sich der zweite Faktor auch über die Bestätigungsadresse nicht mehr einschalten. „Protokoll leeren“ prüft die Admin-Rechte jetzt auch an der Route, nicht nur im Controller.
+- Löschen-Rückfragen: Ein Name mit Apostroph (Applikation, Bereich, Abteilung, Kategorie) konnte im `confirm()` als Skript laufen, sobald jemand auf „Löschen“ klickte. Die Texte gehen jetzt maskiert über `@js()`.
+- Gesperrte Konten verlieren ihre laufende Sitzung beim nächsten Seitenaufruf, nicht erst bei der nächsten Anmeldung. Wer zwischen Passwort und Zwei-Faktor-Code gesperrt wird, kommt nicht mehr hinein.
+- Firmenlogo: Die Dateiendung folgt dem geprüften Inhalt, nicht dem Dateinamen; „logo.html“ mit Bildinhalt wird nicht mehr als Seite ausgeliefert.
+- Links der Applikationen: `data:`-, `blob:`-, `javascript:`- und `vbscript:`-Adressen werden abgelehnt.
+- Der Sprachumschalter leitet nur noch auf eigene Seiten zurück, nie auf eine fremde Adresse aus dem Referer.
+- **Passwortwechsel beendet die anderen Sitzungen:** Nach dem eigenen Wechsel, „Passwort zurücksetzen“ durch einen Administrator, einem Passwort aus dem Bearbeiten-Formular und dem Notzugang enden alle anderen Sitzungen des Kontos beim nächsten Seitenaufruf (Laravels `AuthenticateSession`); die Anmeldeseite sagt, warum. Beim eigenen Wechsel bleibt die laufende Sitzung. Bisher blieb ein geklautes oder vergessenes Gerät angemeldet.
+- **Gruppen eindeutig:** Ein Gruppenname in den Einstellungen zählte für jede gleichnamige Gruppe in jeder OU, z. B. eine selbst angelegte „LinkHub-Admins“ in einer anderen OU. Jetzt wird er beim Speichern zum DN, doppelte Namen werden abgelehnt.
+
+### Dokumentation
+
+- `SECURITY.md` beschreibt die bekannte Folge des Standardwerts von `TRUSTED_PROXIES`: Geräte im internen Netz können ihre Adresse vortäuschen und die Anmeldebremse je Adresse umgehen; wer das vermeiden will, trägt nur die IP des Reverse Proxys ein.
+- Benutzerhandbuch neu: ohne Du, mit Anmeldung, Zwei-Faktor, **Mein Konto** und Hilfe; der Menüpunkt „Pflege“, den es nicht gibt, ist raus.
+- Betrieb (`installation/betrieb.md`, englisch `operations.md`): Wiederherstellung mit App-Schlüssel, Umzug, Notzugang mit `--disable-2fa`. Der Notfall „Kein Administrator kommt hinein“ nannte verschachtelte Gruppen als „nicht ausgewertet“ und eine Einstellung `LDAP_LOGGING`, die es nicht gibt; beides ist korrigiert. `SECURITY.md` beschreibt eigene Konten statt „Anmeldung nur über Active Directory“ und siezt.
+- Synology-Anleitung: Erste Anmeldung im Normalbetrieb mit dem Startpasswort aus dem Protokoll statt „mit einem Konto aus der Administratoren-Gruppe“.
+- Sicherheitsarchitektur an den Stand angepasst (eigene Konten, Verzeichnis ohne LdapRecord, verschachtelte Gruppen, Zwei-Faktor, Uploads); Überblick, Architektur, Admin-Handbuch und README nachgezogen, Rollen um „Benutzer ohne Pflegerechte“ ergänzt.
+
 ## [26101802] — 2026-10-18
 
 ### Dokumentation

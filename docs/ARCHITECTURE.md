@@ -34,15 +34,16 @@ Portal (öffentlich, HomeController)
 Anzeige-Gruppierung
   nach Kategorie (Sortierung), Einträge ohne Kategorie unter „Weitere";
   Kachel = Monogramm (Farbton deterministisch aus dem Namen) + Name +
-  Beschreibung + Öffnen/Manual
+  Beschreibung + Öffnen/Anleitung
         ▼
 Pflege (Manager, nach Login)
   Applikationen (Formular mit Sichtbarkeits-Zuordnung, sync der Pivots)
-  Struktur mit Reitern: Bereiche · Abteilungen · Kategorien (Inline-Forms,
+  Struktur: Bereiche · Abteilungen · Kategorien als Tabellen (Inline-Forms,
   Slugs werden automatisch eindeutig vergeben)
         ▼
 Verwaltung (Administrator)
-  Einstellungen (branding · ad · lizenz · backup, kategorisierte Karten)
+  Benutzer (eigene Konten, Verzeichniskonten sperren, Zwei-Faktor zurücksetzen)
+  Einstellungen (Firma · Anmeldung · Rollen · Lizenz · Backup · Impressum/Datenschutz)
   Audit-Log (Hash-Kette) · Backup „Jetzt sichern" · Testsystem-Restore
 ```
 
@@ -61,10 +62,10 @@ areas 1─n departments          categories 1─n applications
 
 | Thema | Umsetzung |
 |---|---|
-| Rollen | AD-Gruppen aus den Einstellungen setzen `is_admin` / `is_manager`; Sync bei jedem Login (`User::permissionsFromGroups()`); Portal ohne Login (nur lesend) |
+| Rollen | eigene Konten: Haken unter **Benutzer**; Verzeichniskonten: Gruppen aus den Einstellungen setzen `is_admin` / `is_manager` bei jedem Login (`User::permissionsFromGroups()`); gesperrte Konten verlieren die Sitzung sofort (`EnsureActiveAccount`), ein Passwortwechsel beendet die anderen Sitzungen (`AuthenticateSession`), ein offenes Startpasswort lässt nur **Mein Konto** zu (`EnsurePasswordChanged`); Portal ohne Login (nur lesend) |
 | Audit | spatie/activitylog mit eigener Hash-Kette (`record_hash`, SHA-256 verkettet) und Prüf-Button |
-| Backup | nächtlich (VACUUM INTO + Logo-Upload als ZIP), Aufbewahrung ≥ 4 Tage; „Jetzt sichern" → `backups/manual` mit Prüfsummendatei |
-| Testsystem | eigene Instanz (Port 7281), Produktions-Backups read-only, Restore mit Prüfsummen-Verifikation und `migrate --force` |
+| Backup | nächtlich (VACUUM INTO + App-Schlüssel + Logo-Upload als ZIP, Rechte `0640`), Aufbewahrung ≥ 4 Tage; „Jetzt sichern" → `backups/manual` mit Prüfsummendatei; kein Download im Browser |
+| Testsystem | eigene Instanz (Port 7281), Produktions-Backups read-only, Restore mit Prüfsummen-Verifikation und `migrate --force`, nur die Datenbank (eigener Schlüssel), danach Abmeldung |
 | Versionierung | `config('version.number')` + Build-Zeitstempel, DB-Migrationen laufen bei jedem Containerstart (`migrate --force`) — Updates migrieren automatisch hoch |
 | Lizenz | 20-Zeichen-Schlüssel (Typ, Kundennr., Support-Ende, Benutzeranzahl), Zählbasis: registrierte Benutzer |
 | Branding | Setting-Tabelle (flache Schlüssel nach CrewGate-Schema); Firmenname ersetzt den Produktnamen, Logo unter `public/uploads`, Header-/Akzent-/Footer-Farbe und Footer-Text als CSS-Variablen bzw. Texte im Layout |

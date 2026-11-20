@@ -14,7 +14,8 @@
         @foreach($log as $entry)
             <tr>
                 <td>{{ $entry->created_at->format('d.m.Y H:i:s') }}</td>
-                <td>{{ $entry->causer?->name ?? __('System') }}</td>
+                {{-- gelöschte Konten nicht als „System“ ausgeben / do not show deleted accounts as "System" --}}
+                <td>{{ $entry->causer?->name ?? ($entry->causer_id ? __('gelöschtes Konto') . ' #' . $entry->causer_id : __('System')) }}</td>
                 <td>{{ $entry->log_name }}</td>
                 <td>{{ $entry->description }}</td>
                 <td><code style="white-space:pre-wrap;word-break:break-word;display:block;max-height:5.6em;overflow-y:auto">{{ json_encode($entry->properties, JSON_UNESCAPED_UNICODE) }}</code></td>

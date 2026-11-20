@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,7 +26,7 @@ class TestSystemController extends Controller
 
         $latest = $this->latestBackup();
         if (! $latest) {
-            return back()->withErrors(['restore' => 'Kein Produktions-Backup gefunden. Ist der Ordner ./backups der Produktion eingebunden und existiert dort mindestens eine Sicherung?']);
+            return back()->withErrors(['restore' => __('Kein Produktions-Backup gefunden. Ist der Ordner ./backups der Produktion eingebunden und existiert dort mindestens eine Sicherung?')]);
         }
 
         // Prüfsumme verifizieren, wenn eine .sha256-Datei daneben liegt
@@ -34,21 +35,25 @@ class TestSystemController extends Controller
         if (is_file($sumFile)) {
             $expected = trim((string) strtok((string) file_get_contents($sumFile), ' '));
             if (! hash_equals($expected, hash_file('sha256', $latest))) {
-                return back()->withErrors(['restore' => 'Prüfsummen-Fehler: Die Backup-Datei '.basename($latest).' ist beschädigt.']);
+                return back()->withErrors(['restore' => __('Prüfsummen-Fehler: Die Backup-Datei :file ist beschädigt.', ['file' => basename($latest)])]);
             }
         }
 
-        // Datenbank aus dem ZIP-Backup extrahieren
-        // Extract the database from the ZIP backup
+        // Datenbank aus dem ZIP-Backup extrahieren — nur sie: Der App-Schlüssel der
+        // Produktion (database/.app_key) bleibt im ZIP, wird weder gelesen noch
+        // abgelegt; das Testsystem behält seinen eigenen Schlüssel
+        // Extract the database from the ZIP backup — only that: the production
+        // app key (database/.app_key) stays in the ZIP, it is neither read nor
+        // stored; the test system keeps its own key
         $zip = new \ZipArchive();
         if ($zip->open($latest) !== true) {
-            return back()->withErrors(['restore' => 'Backup-Datei '.basename($latest).' konnte nicht geöffnet werden.']);
+            return back()->withErrors(['restore' => __('Backup-Datei :file konnte nicht geöffnet werden.', ['file' => basename($latest)])]);
         }
         $dbContent = $zip->getFromName('database/linkhub.sqlite');
         $zip->close();
 
         if ($dbContent === false) {
-            return back()->withErrors(['restore' => 'Im Backup '.basename($latest).' wurde keine Datenbank gefunden.']);
+            return back()->withErrors(['restore' => __('Im Backup :file wurde keine Datenbank gefunden.', ['file' => basename($latest)])]);
         }
 
         $target = config('database.connections.sqlite.database');
@@ -57,7 +62,7 @@ class TestSystemController extends Controller
         @unlink($target.'-wal');
         @unlink($target.'-shm');
         if (@file_put_contents($target, $dbContent) === false) {
-            return back()->withErrors(['restore' => 'Backup konnte nicht kopiert werden (Rechte im Datenvolume prüfen).']);
+            return back()->withErrors(['restore' => __('Backup konnte nicht kopiert werden (Rechte im Datenvolume prüfen).')]);
         }
 
         // Migrationen anwenden, falls das Testsystem neuer ist als die Produktion
@@ -68,7 +73,15 @@ class TestSystemController extends Controller
             ->withProperties(['backup' => basename($latest)])
             ->log('Produktions-Backup ins Testsystem eingespielt');
 
-        return back()->with('ok', 'Produktionsstand "'.basename($latest).'" eingespielt. Alle bisherigen Testdaten wurden ersetzt.');
+        // Die Konten sind jetzt die der Produktion: abmelden, neu anmelden. Sonst hinge
+        // die Sitzung an einer Kennung, die in der neuen Datenbank jemand anderem gehört.
+        // The accounts are now those of production: sign out, sign in again. Otherwise
+        // the session would hang on an id that belongs to someone else in the new database.
+        Auth::guard()->logoutCurrentDevice();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')->with('ok', __('Produktionsstand „:file“ eingespielt. Alle bisherigen Testdaten wurden ersetzt. Bitte melden Sie sich mit einem Konto der Produktion an.', ['file' => basename($latest)]));
     }
 
     /**

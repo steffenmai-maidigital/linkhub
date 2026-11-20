@@ -35,7 +35,9 @@ landen die nächtlichen Sicherungen.
 
 ## 2. Zum Ausprobieren starten
 
-Im Auslieferungszustand läuft LinkHub im **Demo-Modus**: ohne Active Directory,
+Ausgeliefert wird LinkHub im Normalbetrieb (`DEMO_MODE: "false"`). Zum
+Ausprobieren in der `docker-compose.yml` `DEMO_MODE: "true"` setzen; dann
+läuft LinkHub im **Demo-Modus**: ohne Active Directory,
 mit Beispieldaten und festen Demo-Konten. Das Portal selbst ist ohne Anmeldung nutzbar; angemeldet wird nur zur Pflege.
 
 ```bash
@@ -89,14 +91,26 @@ Wer vorher im Demo-Modus getestet hat und mit einer leeren Datenbank beginnen
 möchte, setzt für **einen** Start `FRESH_DB: "1"` und danach sofort wieder
 `FRESH_DB: "0"` – sonst wird die Datenbank bei jedem Start gelöscht.
 
+Bleiben die Demo-Daten stehen, gelten `admin/admin` und `manager/manager` im
+Normalbetrieb nicht mehr: Beim ersten Start ohne Demo-Modus bekommt `admin`
+ein neues Startpasswort (im Container-Protokoll, `docker compose logs app`;
+oder der Wert aus `ADMIN_PASSWORD`), `manager` ein neues Passwort und eine
+Sperre. Ein Administrator gibt das Konto unter **Benutzer** wieder frei.
+
 ### 3.3 In der Oberfläche einrichten
 
-1. Oben rechts mit einem Konto aus der Administratoren-Gruppe anmelden.
-   Benutzerkonten entstehen beim ersten Anmelden automatisch; die Rollen
-   kommen bei jeder Anmeldung aus den AD-Gruppen (nur direkte
-   Mitgliedschaften).
-2. **Einstellungen** öffnen: Firmenname, Logo und Farben, die beiden
-   AD-Gruppen und die Aufbewahrung der Sicherungen.
+1. Oben rechts als `admin` mit dem Startpasswort aus dem Container-Protokoll
+   (oder `ADMIN_PASSWORD`) anmelden und unter **Mein Konto** ein eigenes
+   Passwort setzen. Ein Startpasswort aus dem Protokoll muss geändert werden;
+   bis dahin ist nur **Mein Konto** erreichbar. Weitere eigene Konten
+   entstehen unter **Benutzer**; auch sie ändern ihr Startpasswort bei der
+   ersten Anmeldung.
+   Mit Verzeichnis entstehen Konten beim ersten Anmelden automatisch; die
+   Rollen kommen bei jeder Anmeldung aus den Gruppen (bei Active Directory
+   auch verschachtelt).
+2. **Einstellungen** öffnen: Firmenname, Logo und Farben, Anmeldung
+   (Verzeichnis, Zwei-Faktor), Rollen aus Gruppen, Aufbewahrung der
+   Sicherungen, Impressum und Datenschutz.
 3. **Struktur:** Bereiche, Abteilungen und Kategorien anlegen.
 4. **Applikationen:** die Anwendungen mit Link, kurzer Beschreibung und
    optionalem Handbuch-Link eintragen und Bereichen oder Abteilungen
@@ -121,6 +135,7 @@ erreichbar sein soll nur der Reverse Proxy.
 - [ ] `TRUSTED_PROXIES` enthält die Adresse des Reverse Proxys (Standard: interne Netze)
 - [ ] im Ordner `backups` liegt nach der ersten Nacht eine Sicherung
 - [ ] der Ordner `backups` und die `docker-compose.yml` werden zusätzlich gesichert (z. B. auf ein zweites Gerät)
+- [ ] den Ordner `backups` und seine Kopien können nur Administratoren lesen (die Sicherungen enthalten den App-Schlüssel)
 - [ ] Impressum und Datenschutz sind unter **Einstellungen** eingetragen, falls nötig
 
 ## Ausprobieren ohne Compose

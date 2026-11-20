@@ -38,12 +38,11 @@ find which application. LinkHub turns them into a maintained portal:
 | Branding | company name (replaces "LinkHub" in the header), logo, header, accent and footer colour, footer text; glass design, light and dark |
 | Imprint and privacy | can be switched on individually, as your own text or a link to the company website; reachable without login, with a template for the privacy notice |
 | Audit | every create, change and delete plus logins and logouts (spatie/activitylog) with hash chain and verify button |
-| Backup | nightly at 01:30, retention configurable (at least 4 days); "Back up now" with checksum file, never deleted automatically |
+| Backup | nightly at 01:30, retention configurable (at least 4 days); "Back up now" with checksum file, never deleted automatically; every backup holds the database, logo and app key and stays on the server (no download in the browser) |
 | Test system | second, separate instance (port 7281) with TESTSYSTEM banner and restore of the latest production state |
 | Help | version, licence, manuals and changelog right in the app (footer → **Help**) |
-| Sign-in | own accounts (menu **Users**) always; directory optional with “Test connection”; groups as DN or name, nested AD groups; emergency access via `php artisan linkhub:admin-password` |
+| Sign-in | own accounts (menu **Users**) always, initial passwords must be changed at the first sign-in, a password change ends the other sessions; directory optional with “Test connection”; groups as DN or name (a name becomes the DN when saving), nested AD groups; emergency access via `php artisan linkhub:admin-password` (with `--disable-2fa` also without the second factor) |
 | Two-factor | TOTP with authenticator app; per group mandatory, optional or off, directory groups with mandatory, exception per user; recovery codes; reset by administrators |
-| Fox helper | **Rua the fox** (a Viking fox from a Norwegian fjord village, called “the red one” by the Irish) greets signed-in users, gives tips matching role and page, promotes free software on the sign-in page; not on the public portal; can be switched off centrally and per person |
 | Operations | Docker, SQLite (WAL), safe updates with downgrade protection, demo mode without a directory |
 | Security | security headers (CSP, HSTS), password-guessing brake per address and per user name, proxy headers only trusted from internal networks |
 
@@ -52,8 +51,9 @@ find which application. LinkHub turns them into a maintained portal:
 | Role | May |
 |---|---|
 | **Visitor** | view, search and filter the portal — without login |
+| **User without maintenance rights** | signed in: additionally help and own account (password, two-factor) |
 | **Manager** | maintain applications, areas, departments and categories |
-| **Administrator** | additionally settings, audit log, backup and test system |
+| **Administrator** | additionally users, settings, audit log, backup and test system |
 
 Managers and administrators are either **own accounts** (menu **Users**,
 permissions ticked) or **directory accounts**: then one group each determines
@@ -80,18 +80,25 @@ mkdir -p backups
 docker compose up -d --build
 ```
 
-LinkHub is then available at <http://localhost:7280>. Out of the box it runs
-in **demo mode** with sample data; log in at the top right with `admin` /
-`admin` or `manager` / `manager`.
+LinkHub is then available at <http://localhost:7280>, in normal operation
+(see below). To try it out there is **demo mode** with sample data: set
+`DEMO_MODE: "true"` in `docker-compose.yml`, then log in at the top right with
+`admin` / `admin` or `manager` / `manager`.
 
 ### Production
 
-1. In `docker-compose.yml` set `DEMO_MODE: "false"`. No `.env` is needed. On
+1. `DEMO_MODE` stays `"false"` (the default). No `.env` is needed. On
    the first start LinkHub creates the administrator `admin` as an own
    account; the initial password is printed in the container log
    (`docker compose logs app`) or set beforehand as `ADMIN_PASSWORD`.
-2. Sign in as `admin` → **Users**: set your own password, create further
-   accounts — or enter the directory under **Settings → 2 · Sign-in**, save
+   An initial password from the log must be changed under **My account** at
+   the first sign-in; until then only that page is available.
+   If the database ran in demo mode before, `admin/admin` and
+   `manager/manager` stop working: `admin` gets a new initial password (log
+   or `ADMIN_PASSWORD`), `manager` is locked.
+2. Sign in as `admin` → **My account**: set your own password. Create further
+   accounts under **Users** (they change their initial password at the first
+   sign-in too) — or enter the directory under **Settings → 2 · Sign-in**, save
    and “Test connection”; roles then come from the groups under
    **Settings → 3**.
 3. **Settings**: company and appearance, backup, imprint and privacy.
@@ -99,7 +106,9 @@ in **demo mode** with sample data; log in at the top right with `admin` /
    **applications**.
 
 Nobody gets locked out: `docker exec linkhub php artisan linkhub:admin-password`
-creates an own admin account or resets its password at any time.
+creates an own admin account or resets its password at any time (an initial
+password that is changed at sign-in). If the phone with the authenticator app
+is gone, `--disable-2fa` also resets that account's two-factor sign-in.
 
 LinkHub generates the `APP_KEY` itself on the first start and stores it in
 `/data/.app_key`. Step by step: [installation/en/docker.md](installation/en/docker.md).
@@ -137,6 +146,13 @@ Behind a reverse proxy set `APP_URL` to the public address (see
 - `app-uploads` (volume): company logo
 - `./backups` (folder, create it first): nightly backups as ZIP with checksum,
   manual backups under `./backups/manual`
+
+Every backup contains the app key (`database/.app_key`) next to the database.
+Without it the service account password and the two-factor secrets could not
+be read after a restore on new hardware. Whoever has a backup can therefore
+decrypt them: only administrators may read the `backups` folder and its
+copies. LinkHub creates the ZIP files without read access for others (`0640`).
+There is no download in the browser.
 
 Restore and moving: see [installation/en/operations.md](installation/en/operations.md).
 
@@ -202,7 +218,7 @@ Layout:
 
 ```
 app/Models            Application, Area, Department, Category, Setting, User, ActivityLog
-app/Support           Directory (AD/LDAP, roles from groups on every login), Mfa, Fox, LegalPages, ProductInfo, ErrorPage
+app/Support           Directory (AD/LDAP, roles from groups on every login), Mfa, LegalPages, ProductInfo, ErrorPage
 app/Services          BackupService, LicenseService
 app/Http/Controllers  portal, applications, structure, settings, backup, test system, docs, support, login
 resources/views       Blade UI, a single stylesheet in public/css/app.css

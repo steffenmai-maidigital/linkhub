@@ -19,10 +19,17 @@ require __DIR__ . '/legacy.php';
 
 // Sprache umschalten (Deutsch/Englisch), merkt sich die Wahl in der Session
 // Switch language (German/English), remembers the choice in the session
-Route::get('/locale/{locale}', function (string $locale) {
+Route::get('/locale/{locale}', function (\Illuminate\Http\Request $request, string $locale) {
     abort_unless(in_array($locale, ['de', 'en'], true), 404);
     session(['locale' => $locale]);
-    return redirect()->back();
+    // Zurück nur auf eigene Seiten, nie auf eine fremde Adresse aus dem Referer
+    // Back only to our own pages, never to a foreign address from the referer
+    $back = url()->previous();
+    if (parse_url($back, PHP_URL_HOST) !== $request->getHost()) {
+        $back = route('home');
+    }
+
+    return redirect()->to($back);
 })->name('locale.switch');
 
 // Öffentliches Portal (kein Login nötig, Pflege oben rechts)
@@ -47,19 +54,21 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // sign-out URL called directly: do not end with "Method Not Allowed"
 Route::get('/logout', fn () => redirect()->route('home'));
 
-Route::middleware(['auth', 'mfa'])->group(function () {
+// Zweiter Faktor (mfa) und Startpasswort (password-changed): bis zur Erledigung nur Konto-Seite und Abmelden
+// Second factor (mfa) and initial password (password-changed): until done only the account page and sign-out
+Route::middleware(['auth', 'mfa', 'password-changed'])->group(function () {
 
     // Hilfe (Standard 03): Kurzanleitung, System, Lizenz, Handbücher, Changelog, Fehler, Support
     // Help (Standard 03): quick guide, system, licence, manuals, changelog, errors, support
     Route::get('/help', [HelpController::class, 'show'])->name('help');
     Route::get('/help/manual/{doc}', [HelpController::class, 'doc'])->name('help.doc');
-    Route::delete('/help/log', [HelpController::class, 'clearLog'])->name('help.clear-log');
+    // Rechte in Middleware und Controller (Standard 06) / rights in middleware and controller (standard 06)
+    Route::delete('/help/log', [HelpController::class, 'clearLog'])->middleware('admin')->name('help.clear-log');
     Route::get('/support', fn () => redirect()->route('help'));   // alte Adresse / old URL
-    // Eigenes Konto: Passwort, Zwei-Faktor, Fuchs-Helfer
-    // Own account: password, two-factor, fox helper
+    // Eigenes Konto: Passwort, Zwei-Faktor
+    // Own account: password, two-factor
     Route::get('/account', [AccountController::class, 'show'])->name('account');
     Route::put('/account/password', [AccountController::class, 'password'])->name('account.password');
-    Route::post('/account/fox', [AccountController::class, 'fox'])->name('account.fox');
     Route::post('/account/2fa', [AccountController::class, 'startTwoFactor'])->name('account.2fa.start');
     Route::post('/account/2fa/confirm', [AccountController::class, 'confirmTwoFactor'])->name('account.2fa.confirm');
     Route::post('/account/2fa/codes', [AccountController::class, 'recoveryCodes'])->name('account.2fa.codes');
@@ -73,8 +82,10 @@ Route::middleware(['auth', 'mfa'])->group(function () {
 
         Route::get('structure', [StructureController::class, 'index'])->name('structure.index');
         Route::post('structure/{type}', [StructureController::class, 'store'])->name('structure.store');
-        Route::put('structure/{type}/{id}', [StructureController::class, 'update'])->name('structure.update');
-        Route::delete('structure/{type}/{id}', [StructureController::class, 'destroy'])->name('structure.destroy');
+        // Nur Zahlen als Kennung: sonst endet „/structure/areas/abc“ mit Fehler 500 statt 404
+        // Numbers only as id: otherwise "/structure/areas/abc" ends with error 500 instead of 404
+        Route::put('structure/{type}/{id}', [StructureController::class, 'update'])->whereNumber('id')->name('structure.update');
+        Route::delete('structure/{type}/{id}', [StructureController::class, 'destroy'])->whereNumber('id')->name('structure.destroy');
     });
 
     // ---- Verwaltung: nur Administratoren / Administration: administrators only ----

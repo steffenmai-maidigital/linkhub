@@ -18,6 +18,10 @@
                 {{ __('Melden Sie sich mit Ihrem LinkHub-Konto an.') }}
             @endif
         </p>
+        @if(session('session_ended'))
+            {{-- AuthenticateSession: Passwort anderswo geändert oder zurückgesetzt / password changed or reset elsewhere --}}
+            <div class="flash err" style="margin-top:.6rem">{{ __('Sie wurden abgemeldet, weil das Passwort dieses Kontos geändert wurde. Bitte melden Sie sich neu an.') }}</div>
+        @endif
         @if(config('demo.enabled'))
             <div class="flash ok" style="margin-top:.6rem">
                 <strong>{{ __('Demo-Modus aktiv') }}</strong> – {{ __('kein Verzeichnis nötig.') }}<br><br>

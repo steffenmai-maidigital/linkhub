@@ -40,12 +40,11 @@ welche Anwendung liegt. LinkHub macht daraus ein gepflegtes Portal:
 | Gestaltung | Firmenname (ersetzt „LinkHub“ im Header), Logo, Header-, Akzent- und Footer-Farbe, Footer-Text; Glas-Design, hell und dunkel |
 | Impressum und Datenschutz | einzeln einschaltbar, als eigener Text oder Link auf die Firmen-Homepage; ohne Anmeldung erreichbar, mit Vorlage für die Datenschutzhinweise |
 | Audit | jede Eingabe, Änderung und Löschung sowie An- und Abmeldungen (spatie/activitylog) mit Hash-Kette und Prüf-Knopf |
-| Backup | nächtlich um 01:30 Uhr, Aufbewahrung einstellbar (mindestens 4 Tage); „Jetzt sichern“ mit Prüfsummendatei, wird nie automatisch gelöscht |
+| Backup | nächtlich um 01:30 Uhr, Aufbewahrung einstellbar (mindestens 4 Tage); „Jetzt sichern“ mit Prüfsummendatei, wird nie automatisch gelöscht; jede Sicherung enthält Datenbank, Logo und App-Schlüssel und bleibt auf dem Server (kein Download im Browser) |
 | Testsystem | zweite, getrennte Instanz (Port 7281) mit TESTSYSTEM-Banner und Einspielen des letzten Produktionsstands |
 | Hilfe | Version, Lizenz, Handbücher und Changelog direkt in der Anwendung (Footer → **Hilfe**) |
-| Anmeldung | eigene Konten (Menü **Benutzer**) immer; Verzeichnis optional mit „Verbindung testen“; Gruppen als DN oder Name, verschachtelte AD-Gruppen; Notzugang per `php artisan linkhub:admin-password` |
+| Anmeldung | eigene Konten (Menü **Benutzer**) immer, Startpasswörter müssen bei der ersten Anmeldung geändert werden, ein Passwortwechsel beendet die anderen Sitzungen; Verzeichnis optional mit „Verbindung testen“; Gruppen als DN oder Name (ein Name wird beim Speichern zum DN), verschachtelte AD-Gruppen; Notzugang per `php artisan linkhub:admin-password` (mit `--disable-2fa` auch ohne zweiten Faktor) |
 | Zwei-Faktor | TOTP mit Authenticator-App; je Gruppe Pflicht, wählbar oder aus, Verzeichnisgruppen mit Pflicht, Ausnahme je Benutzer; Wiederherstellungscodes; Zurücksetzen durch Administratoren |
-| Fuchs-Helfer | **Rua, der Fuchs** (Wikinger-Fuchs aus einem norwegischen Fjorddorf, von den Iren „der Rote“ genannt) begrüßt angemeldete Benutzer, gibt Tipps passend zu Rolle und Seite, wirbt auf der Anmeldeseite für freie Software; nicht auf dem öffentlichen Portal; zentral und je Person abschaltbar |
 | Betrieb | Docker, SQLite (WAL), sicheres Update mit Downgrade-Schutz, Demo-Modus ohne Verzeichnis |
 | Sicherheit | Sicherheits-Header (CSP, HSTS), Bremse gegen Passwort-Raten je Adresse und je Benutzername, Proxy-Angaben nur aus internen Netzen |
 
@@ -54,8 +53,9 @@ welche Anwendung liegt. LinkHub macht daraus ein gepflegtes Portal:
 | Rolle | Darf |
 |---|---|
 | **Besucher** | Portal ansehen, suchen, filtern — ohne Anmeldung |
+| **Benutzer ohne Pflegerechte** | angemeldet: zusätzlich Hilfe und eigenes Konto (Passwort, Zwei-Faktor) |
 | **Manager** | Anwendungen, Bereiche, Abteilungen und Kategorien pflegen |
-| **Administrator** | zusätzlich Einstellungen, Audit-Log, Backup und Testsystem |
+| **Administrator** | zusätzlich Benutzer, Einstellungen, Audit-Log, Backup und Testsystem |
 
 Manager und Administratoren sind entweder **eigene Konten** (Menü
 **Benutzer**, Rechte per Haken) oder **Verzeichniskonten**: Dann bestimmt je
@@ -82,18 +82,25 @@ mkdir -p backups
 docker compose up -d --build
 ```
 
-Danach ist LinkHub unter <http://localhost:7280> erreichbar. Im
-Auslieferungszustand läuft der **Demo-Modus** mit Beispieldaten; Anmeldung
+Danach ist LinkHub unter <http://localhost:7280> erreichbar, im
+Normalbetrieb (siehe unten). Zum Ausprobieren gibt es den **Demo-Modus** mit
+Beispieldaten: in `docker-compose.yml` `DEMO_MODE: "true"` setzen, Anmeldung
 oben rechts mit `admin` / `admin` oder `manager` / `manager`.
 
 ### Normalbetrieb
 
-1. In `docker-compose.yml` `DEMO_MODE: "false"` setzen. Eine `.env` ist nicht
-   nötig. Beim ersten Start legt LinkHub den Administrator `admin` als eigenes
+1. `DEMO_MODE` bleibt auf `"false"` (Auslieferungszustand). Eine `.env` ist
+   nicht nötig. Beim ersten Start legt LinkHub den Administrator `admin` als eigenes
    Konto an; das Startpasswort steht im Container-Protokoll
    (`docker compose logs app`) oder wird vorher als `ADMIN_PASSWORD` gesetzt.
-2. Als `admin` anmelden → **Benutzer**: eigenes Passwort vergeben, weitere
-   Konten anlegen — oder unter **Einstellungen → 2 · Anmeldung** das
+   Ein Startpasswort aus dem Protokoll muss bei der ersten Anmeldung unter
+   **Mein Konto** geändert werden; bis dahin ist nur diese Seite erreichbar.
+   Lief die Datenbank vorher im Demo-Modus, gelten `admin/admin` und
+   `manager/manager` danach nicht mehr: `admin` bekommt ein neues
+   Startpasswort (Protokoll bzw. `ADMIN_PASSWORD`), `manager` wird gesperrt.
+2. Als `admin` anmelden → **Mein Konto**: eigenes Passwort vergeben. Unter
+   **Benutzer** weitere Konten anlegen (auch sie ändern ihr Startpasswort bei
+   der ersten Anmeldung) — oder unter **Einstellungen → 2 · Anmeldung** das
    Verzeichnis eintragen, speichern und „Verbindung testen“; die Rollen
    kommen dann aus den Gruppen unter **Einstellungen → 3**.
 3. **Einstellungen**: Firma und Erscheinungsbild, Backup, Impressum und
@@ -102,7 +109,10 @@ oben rechts mit `admin` / `admin` oder `manager` / `manager`.
    **Applikationen**.
 
 Niemand ausgesperrt: `docker exec linkhub php artisan linkhub:admin-password`
-legt jederzeit ein eigenes Admin-Konto an oder setzt dessen Passwort neu.
+legt jederzeit ein eigenes Admin-Konto an oder setzt dessen Passwort neu (ein
+Startpasswort, das bei der Anmeldung geändert wird). Ist das Handy mit der
+Authenticator-App weg, setzt `--disable-2fa` zusätzlich die
+Zwei-Faktor-Anmeldung dieses Kontos zurück.
 
 Den Schlüssel `APP_KEY` erzeugt LinkHub beim ersten Start selbst und legt ihn
 unter `/data/.app_key` ab. Schritt für Schritt: [installation/docker.md](installation/docker.md).
@@ -140,6 +150,14 @@ Hinter einem Reverse Proxy `APP_URL` auf die öffentliche Adresse setzen
 - `app-uploads` (Volume): Firmenlogo
 - `./backups` (Ordner, vorher anlegen): nächtliche Sicherungen als ZIP mit
   Prüfsumme, manuelle Sicherungen unter `./backups/manual`
+
+Jede Sicherung enthält neben der Datenbank den App-Schlüssel
+(`database/.app_key`). Ohne ihn wären das Passwort des Servicekontos und die
+Zwei-Faktor-Geheimnisse nach einer Wiederherstellung auf neuer Hardware nicht
+lesbar. Wer eine Sicherung hat, kann diese Angaben also entschlüsseln: Den
+Ordner `backups` und seine Kopien dürfen nur Administratoren lesen. LinkHub
+legt die ZIP-Dateien deshalb ohne Leserecht für andere an (`0640`). Einen
+Download im Browser gibt es nicht.
 
 Wiederherstellen und Umziehen: siehe [installation/betrieb.md](installation/betrieb.md).
 
@@ -206,7 +224,7 @@ Aufbau:
 
 ```
 app/Models            Application, Area, Department, Category, Setting, User, ActivityLog
-app/Support           Directory (AD/LDAP, Rollen aus Gruppen bei jedem Login), Mfa, Fox, LegalPages, ProductInfo, ErrorPage
+app/Support           Directory (AD/LDAP, Rollen aus Gruppen bei jedem Login), Mfa, LegalPages, ProductInfo, ErrorPage
 app/Services          BackupService, LicenseService
 app/Http/Controllers  Portal, Applikationen, Struktur, Einstellungen, Backup, Testsystem, Docs, Support, Anmeldung
 resources/views       Blade-Oberfläche, eine Stylesheet-Datei unter public/css/app.css
@@ -233,6 +251,6 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte nicht
 
 [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-or-later).
 
-Ihr dürft LinkHub frei nutzen, verändern und weitergeben. Wer eine
+LinkHub darf frei genutzt, verändert und weitergegeben werden. Wer eine
 **veränderte** Fassung als Webdienst für andere betreibt, muss deren Nutzern den
 Quellcode dieser Fassung anbieten.

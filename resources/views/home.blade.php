@@ -29,7 +29,7 @@
         @if($activeArea) · {{ $activeArea->displayName() }}@if($activeDept) / {{ $activeDept->displayName() }}@endif @endif
     </span>
     <span class="portal-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input type="search" id="app-search" placeholder="{{ __('Applikation suchen …') }}" autocomplete="off" aria-label="{{ __('Applikation suchen') }}">
     </span>
 </div>
@@ -52,7 +52,7 @@
                     <div class="actions">
                         <a class="btn" href="{{ $app->url }}" target="_blank" rel="noopener">{{ __('Öffnen') }}</a>
                         @if($app->manual_url)
-                            <a href="{{ $app->manual_url }}" target="_blank" rel="noopener" title="{{ __('Handbuch / Anleitung') }}">{{ __('Manual') }}</a>
+                            <a href="{{ $app->manual_url }}" target="_blank" rel="noopener" title="{{ __('Handbuch / Anleitung') }}">{{ __('Anleitung') }}</a>
                         @endif
                     </div>
                 </div>
@@ -63,16 +63,20 @@
     <div class="panel">
         <h2 style="margin-top:0">{{ __('Keine Applikationen vorhanden') }}</h2>
         <p class="hint" style="margin:0">
-            @auth
-                {{ __('Lege die erste Applikation unter „Applikationen“ an.') }}
-            @else
+            @if($filtered)
                 {{ __('Für diese Auswahl sind keine Einträge hinterlegt.') }}
-            @endauth
+                <a href="{{ route('home') }}">{{ __('Alle Applikationen anzeigen') }}</a>
+            @elseif(auth()->user()?->canEdit())
+                {{ __('Legen Sie die erste Applikation unter „Applikationen“ an.') }}
+                <a href="{{ route('applications.create') }}">{{ __('Neu anlegen') }}</a>
+            @else
+                {{ __('Es sind noch keine Applikationen hinterlegt.') }}
+            @endif
         </p>
     </div>
 @endforelse
 
-<div class="panel" id="no-results" style="display:none">
+<div class="panel" id="no-results" style="display:none" role="status">
     <h2 style="margin-top:0">{{ __('Keine Treffer') }}</h2>
     <p class="hint" style="margin:0">{{ __('Die Suche ergab keine passende Applikation.') }}</p>
 </div>

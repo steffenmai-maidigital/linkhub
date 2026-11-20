@@ -32,6 +32,7 @@
                     <td><code>{{ $u->username }}</code></td>
                     <td><span class="badge">{{ $u->origin() }}</span>
                         @if($u->hasTwoFactor()) <span class="badge done" title="{{ __('Zwei-Faktor eingerichtet') }}">2FA</span>@elseif(\App\Support\Mfa::isRequired($u)) <span class="badge open" title="{{ __('Zwei-Faktor ist Pflicht, aber noch nicht eingerichtet') }}">2FA !</span>@endif
+                        @if($u->mustChangePassword()) <span class="badge open" title="{{ __('Muss das Startpasswort bei der nächsten Anmeldung ändern') }}">{{ __('Startpasswort') }}</span>@endif
                         @unless($u->active) <span class="badge cancelled">{{ __('gesperrt') }}</span>@endunless</td>
                     <td>
                         @if($u->is_admin)<span class="badge done">{{ __('Administrator') }}</span> @endif
@@ -55,11 +56,18 @@
                 @csrf @method('PUT')
                 @if($u->isLocal())
                     @include('settings.partials.user-fields', ['user' => $u])
-                    <label>{{ __('Neues Passwort (leer = unverändert, mindestens 8 Zeichen)') }}</label>
-                    <input type="text" name="password" value="" autocomplete="off">
+                    <label for="edit-password">{{ __('Neues Passwort (leer = unverändert, mindestens 8 Zeichen)') }}</label>
+                    <input type="text" id="edit-password" name="password" value="" autocomplete="off" minlength="8">
+                    <p class="hint">
+                        @if($u->is(auth()->user()))
+                            {{ __('Ein neues Passwort meldet Sie auf allen anderen Geräten ab.') }}
+                        @else
+                            {{ __('Laufende Sitzungen dieses Kontos enden.') }}
+                            @unless(config('demo.enabled')){{ __('Die Person muss das neue Passwort bei der nächsten Anmeldung ändern.') }}@endunless
+                        @endif
+                    </p>
                 @else
                     <p class="hint">{{ __('Name, E-Mail und Rechte dieses Kontos kommen bei jeder Anmeldung aus dem Verzeichnis und lassen sich hier nicht ändern.') }}</p>
-                    <input type="hidden" name="username" value="{{ $u->username }}"><input type="hidden" name="name" value="{{ $u->name }}">
                 @endif
                 @unless($u->is(auth()->user()))
                     <label class="choice"><input type="checkbox" name="active" value="1" @checked($u->active)> {{ __('Konto aktiv (ohne Haken: gesperrt, keine Anmeldung möglich)') }}</label>
@@ -68,8 +76,8 @@
                 @endunless
                 <div class="row">
                     <div style="max-width:320px">
-                        <label>{{ __('Zwei-Faktor-Anmeldung (Ausnahme für dieses Konto)') }}</label>
-                        <select name="mfa_policy">
+                        <label for="edit-mfa_policy">{{ __('Zwei-Faktor-Anmeldung (Ausnahme für dieses Konto)') }}</label>
+                        <select id="edit-mfa_policy" name="mfa_policy">
                             <option value="" @selected(! $u->mfa_policy)>{{ __('wie Gruppe') }} ({{ \App\Support\Mfa::label(\App\Support\Mfa::policy($u->replicate(['mfa_policy']))) }})</option>
                             @foreach(\App\Support\Mfa::LEVELS as $level => $levelLabel)
                                 <option value="{{ $level }}" @selected($u->mfa_policy === $level)>{{ __($levelLabel) }}</option>
@@ -83,7 +91,7 @@
                 </div>
             </form>
             <div class="row" style="margin-top:.8rem;gap:.6rem">
-                @if($u->isLocal())
+                @if($u->isLocal() && ! $u->is(auth()->user()))
                     <form method="post" action="{{ route('users.password', $u) }}" class="inline-form" onsubmit="return confirm(@js(__('Neues Startpasswort für :name vergeben?', ['name' => $u->name])))">
                         @csrf <button class="primary small">{{ __('Passwort zurücksetzen') }}</button>
                     </form>
@@ -107,8 +115,9 @@
         <form method="post" action="{{ route('users.store') }}">
             @csrf
             @include('settings.partials.user-fields', ['user' => null])
-            <label>{{ __('Passwort (leer = Startpasswort wird erzeugt und einmal angezeigt)') }}</label>
-            <input type="text" name="password" value="" autocomplete="off" minlength="8">
+            <label for="new-password">{{ __('Passwort (leer = Startpasswort wird erzeugt und einmal angezeigt)') }}</label>
+            <input type="text" id="new-password" name="password" value="" autocomplete="off" minlength="8">
+            @unless(config('demo.enabled'))<p class="hint">{{ __('Die Person muss das Startpasswort bei der ersten Anmeldung ändern.') }}</p>@endunless
             <button class="primary">{{ __('Anlegen') }}</button>
         </form>
     </div>

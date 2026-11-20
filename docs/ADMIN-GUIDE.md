@@ -12,7 +12,8 @@ Ausführlich: `installation/docker.md`; Beispiel für eine Container-Oberfläche
    Den `APP_KEY` erzeugt LinkHub beim ersten Start selbst (`/data/.app_key`).
    Der erste Administrator `admin` entsteht als eigenes Konto; sein
    Startpasswort steht im Container-Protokoll (oder vorher `ADMIN_PASSWORD`
-   setzen). Ein Verzeichnis ist optional und wird danach in der Oberfläche
+   setzen). Ein Startpasswort aus dem Protokoll muss bei der ersten
+   Anmeldung unter **Mein Konto** geändert werden. Ein Verzeichnis ist optional und wird danach in der Oberfläche
    eingerichtet (**Einstellungen → 2 · Anmeldung**).
 3. Starten: `docker compose up -d --build` – oder in einer Container-Oberfläche
    als Projekt erstellen. Beim ersten Start werden
@@ -40,7 +41,18 @@ Schema, siehe Changelog).
 - **Eigene Konten** (Menü **Benutzer**): anlegen, Rechte per Haken
   (Manager, Administrator), Passwort zurücksetzen (Startpasswort wird einmal
   angezeigt), sperren, löschen. Das eigene Konto und der letzte Administrator
-  sind geschützt.
+  sind geschützt. Ein gesperrtes Konto verliert eine laufende Sitzung beim
+  nächsten Seitenaufruf.
+- **Startpasswort:** Jedes Passwort, das ein Administrator vergibt (beim
+  Anlegen, über „Passwort zurücksetzen“ oder im Bearbeiten-Formular), muss die
+  Person bei der nächsten Anmeldung unter **Mein Konto** ändern; bis dahin
+  erreicht sie nur diese Seite und das Abmelden. Die Liste zeigt solche Konten
+  mit dem Abzeichen „Startpasswort“. Das eigene Passwort ändern Administratoren
+  unter **Mein Konto** (oder im Bearbeiten-Formular des eigenen Kontos, dann
+  ohne Pflicht zum Ändern). Nicht für Verzeichniskonten, nicht im Demo-Modus.
+- **Sitzungen:** Ein neues Passwort beendet alle anderen Sitzungen des Kontos
+  beim nächsten Seitenaufruf; die Anmeldeseite sagt dann, warum. Beim eigenen
+  Wechsel bleibt die laufende Sitzung.
 - **Verzeichnis** (**Einstellungen → 2 · Anmeldung**): Active Directory,
   Samba AD, OpenLDAP oder Univention — Server, Port, LDAPS/STARTTLS,
   Suchbasis, Servicekonto (Passwort verschlüsselt gespeichert), Attribut
@@ -53,14 +65,23 @@ Schema, siehe Changelog).
   **Benutzer → Bearbeiten**.
 - **Rollen aus Gruppen** (**Einstellungen → 3**): Admin-Gruppe
   (`ad_group_admins`) und Manager-Gruppe (`ad_group_managers`), als DN oder
-  Name. Bei **jedem Login** werden die Gruppen gelesen (bei AD auch
-  verschachtelt) und `is_admin` / `is_manager` gesetzt bzw. entzogen.
+  Name. Ein Name wird beim Speichern zum vollständigen DN; gibt es ihn in
+  mehreren OUs, erscheint am Feld ein Fehler, und nichts wird gespeichert —
+  dann den DN eintragen. Dasselbe gilt für die Verzeichnisgruppen mit
+  Zwei-Faktor-Pflicht. Ist das Verzeichnis nicht erreichbar oder kennt den
+  Namen nicht, bleibt die Eingabe, wie sie ist. Bei **jedem Login** werden
+  die Gruppen gelesen (bei AD auch verschachtelt) und `is_admin` /
+  `is_manager` gesetzt bzw. entzogen.
 - **Administrator**: alles, inkl. Benutzer, Einstellungen, Audit-Log, Backup.
   **Manager**: Pflege von Applikationen und Struktur.
 - Verzeichniskonten entstehen automatisch beim ersten Login und erscheinen
   unter **Benutzer** mit Herkunft „Verzeichnis“ (nur ansehen und sperren).
   Demo-Modus: `admin/admin` und `manager/manager` als eigene Konten.
-- Notzugang: `docker exec linkhub php artisan linkhub:admin-password`.
+- **Notzugang:** `docker exec linkhub php artisan linkhub:admin-password [name]`
+  legt ein eigenes Admin-Konto an (Standard `admin`) oder setzt sein Passwort
+  neu. Das ausgegebene Passwort ist ein Startpasswort, laufende Sitzungen des
+  Kontos enden. `--disable-2fa` setzt zusätzlich die Zwei-Faktor-Anmeldung
+  zurück (Handy verloren). Verzeichniskonten lehnt der Befehl ab.
 
 ## Pflege-Logik (Sichtbarkeit)
 - Zuordnung an einen **Bereich**: sichtbar im Bereichs-Filter (und unter
@@ -85,9 +106,7 @@ Schema, siehe Changelog).
   Auswirkungen.
 - **5 · Backup**: Aufbewahrungstage der automatischen Sicherungen
   (harte Untergrenze 4 Tage, nur nach oben anpassbar).
-- **6 · Fuchs-Helfer** (Rua, der Wikinger-Fuchs aus Norwegen): zentral ein-
-  oder ausschalten; jede Person kann ihn unter **Hilfe** für sich ausblenden.
-- **7 · Impressum und Datenschutz**: beide Seiten einzeln einschaltbar, als
+- **6 · Impressum und Datenschutz**: beide Seiten einzeln einschaltbar, als
   eigener Text oder Link auf die Firmen-Homepage; ohne Anmeldung erreichbar
   (`/imprint`, `/privacy`) und auf Anmeldeseite und Footer verlinkt.
   Für die Datenschutzhinweise gibt es eine Vorlage.
@@ -104,13 +123,22 @@ leere EN-Felder fallen auf den deutschen Text zurück.
 ## Betrieb & Sicherheit
 - **Backup**: nächtlich 01:30 Uhr in `backups/` mit Prüfsummen; „Jetzt
   zusätzliches Backup" → `backups/manual` (wird nie automatisch gelöscht).
-  Wiederherstellung: Container stoppen, `database/linkhub.sqlite` aus dem
-  Backup-ZIP in das Datenvolume (`/data/linkhub.sqlite`) kopieren, ggf.
-  `uploads/` nach `public/uploads` (Volume `app-uploads`) zurückspielen, Container starten.
+  Jede Sicherung enthält Datenbank, Logo und den App-Schlüssel
+  (`database/.app_key`); ohne ihn wären Servicekonto-Passwort und
+  Zwei-Faktor nach einer Wiederherstellung auf neuer Hardware nicht lesbar.
+  Den Ordner `backups` und seine Kopien dürfen deshalb nur Administratoren
+  lesen; einen Download im Browser gibt es nicht.
+  Wiederherstellung: Container stoppen, `database/linkhub.sqlite` und
+  `database/.app_key` aus dem Backup-ZIP in das Datenvolume
+  (`/data/linkhub.sqlite`, `/data/.app_key`) kopieren, ggf. `uploads/` nach
+  `public/uploads` (Volume `app-uploads`) zurückspielen, Container starten.
+  Befehle: `installation/betrieb.md`.
 - **Testsystem**: `docker-compose.test.yml` als eigenes Projekt starten
   (Port 7281, Ordner `backups-test/` vorher anlegen). Unter
   Einstellungen → Testsystem lässt sich der letzte Produktionsstand
-  einspielen; die Prüfsumme wird vorher verifiziert.
+  einspielen; die Prüfsumme wird vorher verifiziert. Danach gelten die Konten
+  der Produktion (neu anmelden). Den App-Schlüssel der Produktion übernimmt
+  das Testsystem nicht.
 - **Audit-Log**: alle Pflege-Aktionen mit Benutzer, Zeit und Feldwerten;
   „Hash-Kette prüfen" weist nachträgliche Manipulation nach.
 - Anmeldeversuche sind auf 10 pro Minute gedrosselt (Throttle).

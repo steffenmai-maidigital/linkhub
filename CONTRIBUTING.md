@@ -69,7 +69,7 @@ die Handbücher unter `docs/` und die deutsche Hälfte der Kommentare.
   als zweite Zeile, am Zeilenende als `// Deutsch / English`.
 - Begriffe einheitlich: Applikation = application, Bereich = area,
   Abteilung = department, Kategorie = category, Struktur = structure,
-  Verzeichnis = directory, Fuchs-Helfer = fox, Impressum = imprint,
+  Verzeichnis = directory, Impressum = imprint,
   Datenschutz = privacy, Sicherung = backup, Testsystem = test system.
 - Die Einträge im Audit-Log (`activity_log`) bilden eine Hash-Kette und
   behalten ihre gespeicherten (deutschen) Modulnamen und Beschreibungen.
@@ -91,7 +91,7 @@ German half of the comments.
   second line, at the end of a code line as `// Deutsch / English`.
 - Consistent terms: Applikation = application, Bereich = area,
   Abteilung = department, Kategorie = category, Struktur = structure,
-  Verzeichnis = directory, Fuchs-Helfer = fox, Impressum = imprint,
+  Verzeichnis = directory, Impressum = imprint,
   Datenschutz = privacy, Sicherung = backup, Testsystem = test system.
 - Audit log entries (`activity_log`) form a hash chain and keep their stored
   (German) module names and descriptions.

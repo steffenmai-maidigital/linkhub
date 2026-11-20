@@ -1,5 +1,5 @@
 :root {
-  --bg: #f5f6f8; --panel: #ffffff; --ink: #1d2733; --muted: #64748b;
+  --bg: #f5f6f8; --panel: #ffffff; --ink: #1d2733; --muted: #5b6b80; /* #5b6b80: WCAG AA auch auf --chip / AA on --chip too */
   --line: #e2e6ec; --accent: #14557b; --accent-ink: #ffffff;
   --header-bg: var(--accent); --footer-bg: #1d2733; --footer-ink: #cbd5e1;
   --ok-bg: #e7f4ec; --ok-ink: #1e6b3a; --err-bg: #fbeaea; --err-ink: #9c2b2b;
@@ -43,6 +43,9 @@ footer.bottom a { color: inherit; text-decoration: underline; filter: none; }
 .flash { padding: .6rem .9rem; border-radius: 8px; margin-bottom: 1rem; }
 .flash.ok { background: var(--ok-bg); color: var(--ok-ink); }
 .flash.err { background: var(--err-bg); color: var(--err-ink); }
+/* Fehler direkt unter einem Feld / error right below a field */
+.field-error { margin: .25rem 0 0; color: var(--err-ink); font-size: .88rem; font-weight: 600; }
+[aria-invalid="true"] { border-color: var(--err-ink) !important; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -425,88 +428,6 @@ button.small, header.top button, .lang-switch summary, header.top .who a.login, 
 @media (pointer: coarse) { button.small, .app-tile .actions a.btn { min-height: 44px; } }
 .md-body img { max-width: 100%; }
 
-/* ============================================================
-   Fuchs-Helfer (gemeinsamer Baustein, Standard 03) — unten rechts.
-   Erwartet die Variablen --panel, --ink, --muted, --accent, --accent-ink, --link.
-
-   Fox helper (shared building block, Standard 03) — bottom right.
-   Expects the variables --panel, --ink, --muted, --accent, --accent-ink, --link.
-   ============================================================ */
-.fox { position: fixed; right: 14px; bottom: 10px; z-index: 30; display: flex; align-items: flex-end; gap: .4rem; pointer-events: none;
-    transform: translateY(140%); transition: transform .5s cubic-bezier(.2,1.4,.4,1); }
-.fox.shown { transform: none; }
-.fox > * { pointer-events: auto; }
-/* all: unset setzt auch pointer-events zurück – die Figur erbte sonst none vom Rahmen,
-   echte Klicks gingen durch den Fuchs hindurch. Darum pointer-events direkt dahinter.
-   all: unset also resets pointer-events – the figure would inherit none from the frame
-   and real clicks would pass through the fox. Hence pointer-events right after it. */
-.fox-figure { all: unset; pointer-events: auto; cursor: pointer; display: block; width: 96px; height: 96px; filter: drop-shadow(0 6px 10px rgba(0,0,0,.15)); }
-.fox-figure:focus-visible { outline: 3px solid var(--link); border-radius: 50%; }
-.fox-figure svg { display: block; overflow: visible; }
-.fox-figure svg g { transform-box: view-box; }
-.fox-bubble { position: relative; max-width: min(300px, calc(100vw - 140px)); background: var(--panel); color: var(--ink); border-radius: 18px 18px 4px 18px;
-    padding: .75rem 1rem .6rem; box-shadow: 0 10px 30px rgba(20,30,45,.22); margin-bottom: 64px; font-weight: 600; font-size: .92rem; line-height: 1.4; animation: bubble-in .25s ease-out; }
-.fox-bubble::after { content: ""; position: absolute; right: -8px; bottom: 10px; border: 9px solid transparent; border-left-color: var(--panel); border-right: 0; }
-.fox-text { margin: 0 1.2rem .5rem 0; }
-.fox-bubble-buttons { display: flex; gap: .4rem; flex-wrap: wrap; }
-.fox-bubble-buttons button { min-height: 32px; padding: .2rem .65rem; font-size: .8rem; font: inherit; font-size: .8rem; border: 1px solid var(--line); border-radius: 999px; background: var(--chip); color: var(--ink); cursor: pointer; margin: 0; }
-.fox-next { background: var(--accent) !important; color: var(--accent-ink) !important; border-color: transparent !important; }
-.fox-link { display: inline-flex; align-items: center; min-height: 32px; padding: .2rem .65rem; border-radius: 999px; background: color-mix(in srgb, var(--link) 14%, transparent); color: var(--link); font-size: .8rem; font-weight: 700; text-decoration: none; }
-.fox-close { position: absolute; top: .25rem; right: .3rem; min-height: 28px !important; width: 28px; padding: 0 !important; background: none !important; border: none !important; color: var(--muted) !important; font-size: 1.2rem; }
-@keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(.96); } }
-
-/* Animationen / Animations */
-.f-tail { transform-origin: 74px 92px; animation: f-wag 2.6s ease-in-out infinite; }
-.f-body { transform-origin: 58px 108px; animation: f-breathe 3.2s ease-in-out infinite; }
-.f-head { transform-origin: 58px 76px; animation: f-head 7s ease-in-out infinite; }
-.f-eyes { transform-origin: 58px 47px; animation: f-blink 5s infinite; }
-.f-ear-l { transform-origin: 40px 34px; animation: f-ear 8s infinite; }
-.f-ear-r { transform-origin: 76px 34px; animation: f-ear 9s 1s infinite; }
-.f-paw { opacity: 0; transform-origin: 38px 84px; }
-.f-sleep-eyes, .f-zzz { opacity: 0; }
-.f-zzz text { fill: var(--muted); transform-box: fill-box; transform-origin: center; }
-.fox.waving .f-paw { opacity: 1; animation: f-wave .5s ease-in-out 4 alternate; }
-.fox.speaking .f-mouth { d: path("M52 66 Q 58 74 64 66"); }
-.fox.hopping .fox-figure svg { animation: f-hop .45s ease-out; }
-.fox.asleep .f-eyes { opacity: 0; }
-.fox.asleep .f-sleep-eyes { opacity: 1; }
-.fox.asleep .f-zzz, .fox.deep-sleep .f-zzz { opacity: 1; }
-.fox.asleep .f-zzz text, .fox.deep-sleep .f-zzz text { opacity: 0; animation: f-zzz 3s ease-in-out infinite; }
-.fox .f-z2 { animation-delay: 1s !important; }
-.fox .f-z3 { animation-delay: 2s !important; }
-/*
- * Tiefschlaf: hingelegt — Kopf unten, Schwanz eingerollt, ruhiges Atmen
- *
- * Deep sleep: lying down — head down, tail curled up, calm breathing
- */
-.fox.deep-sleep .f-eyes, .fox.deep-sleep .f-paw { opacity: 0; }
-.fox.deep-sleep .f-sleep-eyes { opacity: 1; }
-.fox.deep-sleep .f-head { animation: none; transform: translate(4px, 22px) rotate(14deg); transition: transform .6s ease; }
-.fox.deep-sleep .f-ear-l, .fox.deep-sleep .f-ear-r { animation: none; transform: rotate(-8deg); }
-.fox.deep-sleep .f-body { animation: f-sleep-breathe 4s ease-in-out infinite; }
-.fox.deep-sleep .f-tail { animation: none; transform: rotate(58deg) translate(-6px, 4px); transition: transform .6s ease; }
-.fox.deep-sleep .f-mouth { opacity: .4; }
-.fox.deep-sleep .fox-figure { filter: drop-shadow(0 4px 6px rgba(0,0,0,.12)) saturate(.85); }
-@keyframes f-sleep-breathe { 0%, 100% { transform: scale(1.06, .78); } 50% { transform: scale(1.08, .82); } }
-.fox.asleep .f-tail { animation-duration: 6s; }
-@keyframes f-wag { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(9deg); } }
-@keyframes f-breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.035); } }
-@keyframes f-head { 0%, 70%, 100% { transform: rotate(0); } 78% { transform: rotate(-6deg); } 88% { transform: rotate(4deg); } }
-@keyframes f-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
-@keyframes f-ear { 0%, 90%, 100% { transform: rotate(0); } 93% { transform: rotate(-12deg); } 96% { transform: rotate(4deg); } }
-@keyframes f-wave { from { transform: rotate(10deg); } to { transform: rotate(-18deg); } }
-@keyframes f-hop { 30% { transform: translateY(-14px) scale(1.05, .95); } 60% { transform: translateY(0) scale(.97, 1.03); } }
-@keyframes f-zzz { 0% { transform: translate(0, 6px) scale(.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(8px, -12px) scale(1.1); opacity: 0; } }
-
-@media (prefers-reduced-motion: reduce) {
-    .fox, .fox * { animation: none !important; transition: none !important; }
-}
-@media (max-width: 640px) {
-    .fox-figure, .fox-figure svg { width: 72px; height: 72px; }
-    .fox-bubble { margin-bottom: 48px; }
-}
-@media print { .fox { display: none !important; } }
-
 /*
  * Einheitliche Symbole (Twemoji) in der Oberfläche, siehe js/symbols.js (Standard 03)
  *
@@ -518,26 +439,58 @@ img.emoji-symbol { display: inline-block; width: 1.2em; height: 1.2em; margin: 0
 .device-emoji { display: inline-block; }
 
 /*
- * Verschiebbar (seit 17.10.2026): Die Blase hängt an der Figur und klappt zur
- * freien Seite – nach rechts, wenn Rua links steht, nach unten, wenn er oben
- * steht. Ziehen per Maus oder Finger, die Lage merkt sich der Browser.
+ * Durchsicht 20.11.2026: Suchfelder wie alle Eingaben, sichtbarer Fokus,
+ * weniger Bewegung auf Wunsch, Bedienflächen am Telefon mindestens 44 px,
+ * Schlüssel-Wert-Tabellen (Hilfe) am Telefon untereinander
  *
- * Draggable (since 17.10.2026): the bubble hangs on the figure and flips to the
- * free side – to the right when Rua stands on the left, downwards when he stands
- * at the top. Drag with mouse or finger; the browser remembers the position.
+ * Review 20.11.2026: search fields like all inputs, visible focus, less
+ * motion on request, touch targets on phones at least 44 px, key-value
+ * tables (help) stacked on phones
  */
-.fox-bubble { position: absolute; right: calc(100% + .4rem); bottom: 64px; margin-bottom: 0; width: max-content; }
-.fox.at-left .fox-bubble { right: auto; left: calc(100% + .4rem); border-radius: 18px 18px 18px 4px; }
-.fox.at-left .fox-bubble::after { right: auto; left: -8px; border: 9px solid transparent; border-right-color: var(--panel); border-left: 0; }
-.fox.at-top .fox-bubble { bottom: auto; top: 64px; }
-.fox.at-top .fox-bubble::after { bottom: auto; top: 10px; }
-.fox-figure { touch-action: none; cursor: grab; }
-.fox.dragging, .fox.dragging * { transition: none !important; }
-.fox.dragging .fox-figure { cursor: grabbing; }
-@media (max-width: 640px) {
-    .fox-bubble { bottom: 48px; }
-    .fox.at-top .fox-bubble { top: 48px; }
+input[type=search] {
+  width: 100%; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 12px; font: inherit;
+  background: color-mix(in srgb, var(--input-bg) 72%, transparent); color: var(--ink);
 }
-/* Die Figur ist ein Knopf ohne Fläche – auch gegen allgemeine Knopf-Regeln wie im Dunkelmodus
-   The figure is a button without a background – also against general button rules such as in dark mode */
-.fox .fox-figure, .fox .fox-figure:hover, .fox .fox-figure:focus { background: none; box-shadow: none; border: 0; }
+input[type=search]:focus { outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); }
+.portal-search input[type=search] { padding-left: 2.1rem; }
+a:focus-visible, button:focus-visible, summary:focus-visible, input[type=checkbox]:focus-visible, input[type=radio]:focus-visible, input[type=file]:focus-visible {
+  outline: 3px solid var(--link); outline-offset: 2px;
+}
+header.top a:focus-visible, header.top button:focus-visible, header.top summary:focus-visible, .filter-pill.active:focus-visible { outline-color: #ffffff; }
+header.top button, .lang-switch summary, header.top .who a.login { white-space: nowrap; }
+header.top .who { flex-wrap: wrap; justify-content: flex-end; min-width: 0; max-width: 100%; row-gap: .4rem; }
+header.top .who a.name { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
+.panel table.kv { min-width: 0; }
+@media (max-width: 760px) {
+  .panel table.kv th, .panel table.kv td { display: block; width: auto !important; border-bottom: 0; padding: .15rem .2rem; }
+  .panel table.kv tr { display: block; border-bottom: 1px solid var(--line); padding: .45rem 0; }
+  .panel table.kv tr:last-child { border-bottom: 0; }
+}
+@media (pointer: coarse) {
+  .filter-pill, header.top button, .lang-switch summary, header.top .who a.login, .lang-menu a, .pager-btn { min-height: 44px; display: inline-flex; align-items: center; }
+  label.choice { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .app-tile:hover, button.primary:active, a.btn:active { transform: none; }
+}
+
+/*
+ * Pflege-Tabellen (Struktur) am Telefon als Karten: jede Zeile untereinander,
+ * Spaltenname aus data-label, Knöpfe in voller Breite erreichbar
+ *
+ * Maintenance tables (structure) on phones as cards: each row stacked,
+ * column name from data-label, buttons reachable at full width
+ */
+@media (max-width: 760px) {
+  .panel table.manage { min-width: 0; }
+  .panel table.manage tr:first-child:has(th) { display: none; }
+  .panel table.manage tr { display: block; padding: .6rem 0; border-bottom: 1px solid var(--line); }
+  .panel table.manage tr:last-child { border-bottom: 0; }
+  .panel table.manage td { display: block; border: 0; padding: .2rem 0; }
+  .panel table.manage td[data-label]::before { content: attr(data-label); display: block; font-size: .78rem; color: var(--muted); }
+  .panel table.manage td input[type=text], .panel table.manage td select { min-width: 0 !important; }
+  .panel table.manage td input[type=number] { max-width: 8rem; }
+  .panel table.manage td.actions { display: flex; gap: .6rem; flex-wrap: wrap; padding-top: .5rem; }
+  .panel table.manage td.actions button.primary { margin-top: 0; }
+}

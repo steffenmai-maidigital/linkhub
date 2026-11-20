@@ -14,11 +14,12 @@ each command with `sudo`. The examples assume the Compose project is called
 | volume `linkhub_app-data` (`/data`) | database `linkhub.sqlite`, key `.app_key`, backups taken before every update under `backups/` |
 | volume `linkhub_app-storage` | sessions, cache, logs |
 | volume `linkhub_app-uploads` | company logo |
-| folder `./backups` | nightly backups; `manual/` for backups created by hand |
+| folder `./backups` | nightly backups with database, logo and app key; `manual/` for backups created by hand |
 | `docker-compose.yml` | all settings, including AD credentials |
 
 The Compose file contains credentials. Back it up, but do not keep it in a
-folder that many people can read.
+folder that many people can read. The same applies to the `backups` folder:
+every backup contains the app key.
 
 ## Update
 
@@ -94,13 +95,29 @@ So do not delete old images too early (`docker image prune -a` removes them).
   `docker-compose.yml` to a second device, on Synology e.g. with
   **Hyper Backup**.
 
+Every backup contains the **app key** next to the database and logo
+(`database/.app_key`, a copy of `/data/.app_key`). Without it the service
+account password and the two-factor secrets cannot be read after a restore on
+new hardware. Whoever has a backup can decrypt them. Therefore:
+
+- Only administrators may read the `backups` folder and all its copies.
+  LinkHub creates the ZIP files without read access for others (`0640`); use
+  `sudo` to check or copy them on the host.
+- Backups only exist on the server; there is no download in the browser.
+- If `APP_KEY` is set in `docker-compose.yml`, there is no `/data/.app_key`.
+  The backup then contains no key, and `docker-compose.yml` belongs in the
+  backup as well.
+
 To check a backup:
 
 ```bash
-cd backups && sha256sum -c FILE.zip.sha256
+cd backups && sudo sha256sum -c FILE.zip.sha256
 ```
 
 ## Restore
+
+At the end LinkHub runs with the state of the backup: data, logo and the key
+that keeps the service account password and two-factor readable.
 
 Replace `FILE.zip` with the name of the backup (for manual backups:
 `manual/FILE.zip`).
@@ -109,23 +126,27 @@ Replace `FILE.zip` with the name of the backup (for manual backups:
 cd linkhub
 docker compose stop
 
-docker run --rm -v linkhub_app-data:/data -v linkhub_app-uploads:/uploads \
+sudo docker run --rm -v linkhub_app-data:/data -v linkhub_app-uploads:/uploads \
   -v "$PWD/backups:/backups:ro" alpine sh -c "
   set -e; mkdir /tmp/r && cd /tmp/r && unzip -q /backups/FILE.zip
   rm -f /data/linkhub.sqlite /data/linkhub.sqlite-wal /data/linkhub.sqlite-shm
   cp database/linkhub.sqlite /data/linkhub.sqlite
+  if [ -f database/.app_key ]; then cp database/.app_key /data/.app_key && chmod 600 /data/.app_key; fi
   if [ -d uploads ]; then cp -r uploads/. /uploads/; fi
   echo restored"
 
 docker compose start
 ```
 
-LinkHub fixes the file permissions itself on start.
+LinkHub fixes the file permissions itself on start. Older backups contain no
+key yet; then the existing one stays in use. If such a backup comes from
+another server, the service account password and two-factor secrets cannot be
+read without that server's `/data/.app_key`.
 
 **Moving to another server:** set up LinkHub there as described in the
 installation guide (same `docker-compose.yml`), start it once and then run the
-restore as above. Afterwards check `APP_URL` and – if used – the addresses in
-the settings.
+restore as above. It takes the app key along. Afterwards check `APP_URL` and –
+if used – the addresses in the settings.
 
 ## Test system
 
@@ -144,16 +165,41 @@ Synology: create `docker-compose.test.yml` as a separate project
 The test system shows a red **TESTSYSTEM** banner at the top. The production
 backup folder is mounted read-only there: under **Settings → Test system** the
 administrator restores the latest production state with one click; the
-checksum is verified first.
+checksum is verified first. Afterwards the production accounts apply: LinkHub
+signs out, and you sign in with a production account. The test system only
+reads the database from the backup and does not take over the production app
+key. Encrypted production data (service account password, two-factor) can
+therefore not be read in the test system.
 
 ## Emergencies
 
 ### No administrator can get in
 
-The administrators group is set under **Settings**, otherwise in
-`AD_GROUP_ADMINS`. Check that the account is a **direct** member of that group
-(enter only the group name, e.g. `LinkHub-Admins`; nested groups are not evaluated). `LDAP_LOGGING: "true"` shows the LDAP messages in the
-log (`docker compose logs -f app`).
+An own admin account always works, even if the directory is down:
+
+```bash
+docker exec linkhub php artisan linkhub:admin-password
+```
+
+The command creates the account `admin` or resets its password (another name:
+`linkhub:admin-password name`). The password it prints is an initial password:
+it must be changed under **My account** at sign-in, and running sessions of the
+account end. If the phone with the authenticator app is gone, `--disable-2fa`
+also resets the two-factor sign-in:
+
+```bash
+docker exec linkhub php artisan linkhub:admin-password admin --disable-2fa
+```
+
+The command refuses directory accounts; their password is managed by the
+directory.
+
+If administrators from the directory cannot get in: the administrators group
+is set under **Settings → 3**, otherwise in `AD_GROUP_ADMINS`. A group name
+becomes the full DN when saving; if the name exists in several OUs, LinkHub asks
+for the DN. Check that the account is a member of exactly that group (with
+Active Directory nested groups count too). Directory messages are in the log
+(`docker compose logs -f app`).
 
 ### A user name is locked
 
@@ -197,3 +243,4 @@ Each prefixed with `docker exec linkhub`:
 | `php artisan app:upgrade` | run the version check and migrations by hand |
 | `php artisan schedule:list` | show scheduled tasks and their next run |
 | `php artisan cache:clear` | clear the cache (also lifts login locks) |
+| `php artisan linkhub:admin-password [name] [--disable-2fa]` | emergency access: own admin account with an initial password, optionally without two-factor |

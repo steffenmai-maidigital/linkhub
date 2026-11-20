@@ -14,11 +14,12 @@ Gilt für Docker allgemein und für Synology/QNAP. Per SSH auf dem NAS jeweils
 | Volume `linkhub_app-data` (`/data`) | Datenbank `linkhub.sqlite`, Schlüssel `.app_key`, Sicherungen vor jedem Update unter `backups/` |
 | Volume `linkhub_app-storage` | Sitzungen, Zwischenspeicher, Protokolle |
 | Volume `linkhub_app-uploads` | Firmenlogo |
-| Ordner `./backups` | nächtliche Sicherungen; `manual/` für Sicherungen, die von Hand angelegt wurden |
+| Ordner `./backups` | nächtliche Sicherungen mit Datenbank, Logo und App-Schlüssel; `manual/` für Sicherungen, die von Hand angelegt wurden |
 | `docker-compose.yml` | alle Einstellungen, auch Zugangsdaten für AD |
 
 Die Compose-Datei enthält Zugangsdaten. Sie gehört in die Sicherung, aber
-nicht in einen Ordner, den viele lesen können.
+nicht in einen Ordner, den viele lesen können. Dasselbe gilt für den Ordner
+`backups`: Jede Sicherung enthält den App-Schlüssel.
 
 ## Update
 
@@ -96,13 +97,30 @@ entfernt sie).
   regelmäßig auf ein zweites Gerät kopieren, auf der Synology z. B. mit
   **Hyper Backup**.
 
+Jede Sicherung enthält neben Datenbank und Logo den **App-Schlüssel**
+(`database/.app_key`, eine Kopie von `/data/.app_key`). Ohne ihn sind das
+Passwort des Servicekontos und die Zwei-Faktor-Geheimnisse nach einer
+Wiederherstellung auf neuer Hardware nicht lesbar. Wer eine Sicherung hat,
+kann diese Angaben entschlüsseln. Deshalb:
+
+- Den Ordner `backups` und alle Kopien dürfen nur Administratoren lesen.
+  LinkHub legt die ZIP-Dateien ohne Leserecht für andere an (`0640`); zum
+  Prüfen oder Kopieren auf dem Host `sudo` verwenden.
+- Sicherungen gibt es nur auf dem Server, nicht zum Herunterladen im Browser.
+- Steht `APP_KEY` in der `docker-compose.yml`, gibt es `/data/.app_key` nicht.
+  Dann enthält die Sicherung keinen Schlüssel, und die `docker-compose.yml`
+  gehört mit in die Sicherung.
+
 Eine Sicherung prüfen:
 
 ```bash
-cd backups && sha256sum -c DATEI.zip.sha256
+cd backups && sudo sha256sum -c DATEI.zip.sha256
 ```
 
 ## Wiederherstellung
+
+Am Ende läuft LinkHub mit dem Stand der Sicherung: Daten, Logo und der
+Schlüssel, mit dem Servicekonto-Passwort und Zwei-Faktor lesbar bleiben.
 
 `DATEI.zip` durch den Namen der Sicherung ersetzen (bei Sicherungen von Hand:
 `manual/DATEI.zip`).
@@ -111,23 +129,28 @@ cd backups && sha256sum -c DATEI.zip.sha256
 cd linkhub
 docker compose stop
 
-docker run --rm -v linkhub_app-data:/data -v linkhub_app-uploads:/uploads \
+sudo docker run --rm -v linkhub_app-data:/data -v linkhub_app-uploads:/uploads \
   -v "$PWD/backups:/backups:ro" alpine sh -c "
   set -e; mkdir /tmp/r && cd /tmp/r && unzip -q /backups/DATEI.zip
   rm -f /data/linkhub.sqlite /data/linkhub.sqlite-wal /data/linkhub.sqlite-shm
   cp database/linkhub.sqlite /data/linkhub.sqlite
+  if [ -f database/.app_key ]; then cp database/.app_key /data/.app_key && chmod 600 /data/.app_key; fi
   if [ -d uploads ]; then cp -r uploads/. /uploads/; fi
   echo wiederhergestellt"
 
 docker compose start
 ```
 
-Die Dateirechte setzt LinkHub beim Start selbst.
+Die Dateirechte setzt LinkHub beim Start selbst. Ältere Sicherungen enthalten
+noch keinen Schlüssel; dann gilt der vorhandene weiter. Stammt eine solche
+Sicherung von einem anderen Server, sind Servicekonto-Passwort und
+Zwei-Faktor-Geheimnisse ohne dessen `/data/.app_key` nicht lesbar.
 
 **Umzug auf einen anderen Server:** Dort LinkHub wie in der
 Installationsanleitung einrichten (gleiche `docker-compose.yml`), einmal
-starten und dann die Wiederherstellung wie oben ausführen. Danach `APP_URL`
-und – falls genutzt – die Adressen in den Einstellungen prüfen.
+starten und dann die Wiederherstellung wie oben ausführen. Sie übernimmt den
+App-Schlüssel mit. Danach `APP_URL` und – falls genutzt – die Adressen in den
+Einstellungen prüfen.
 
 ## Testsystem
 
@@ -146,16 +169,42 @@ selben Ordner anlegen.
 Das Testsystem zeigt oben ein rotes Banner **TESTSYSTEM**. Der Sicherungsordner
 der Produktion ist dort nur lesend eingebunden: Unter **Einstellungen →
 Testsystem** spielt der Administrator den letzten Produktionsstand per Klick
-ein; die Prüfsumme wird vorher geprüft.
+ein; die Prüfsumme wird vorher geprüft. Danach gelten die Konten der
+Produktion: LinkHub meldet ab, die Anmeldung läuft mit einem Konto der
+Produktion. Aus der Sicherung liest das Testsystem nur die Datenbank, den
+App-Schlüssel der Produktion übernimmt es nicht. Verschlüsselte Angaben der
+Produktion (Servicekonto-Passwort, Zwei-Faktor) sind im Testsystem deshalb
+nicht lesbar.
 
 ## Notfälle
 
 ### Kein Administrator kommt hinein
 
-Die Administratoren-Gruppe steht unter **Einstellungen**, ersatzweise in
-`AD_GROUP_ADMINS`. Prüfen, ob das Konto **direktes** Mitglied dieser Gruppe ist
-(eingetragen wird nur der Gruppenname, z. B. `LinkHub-Admins`; verschachtelte Gruppen werden nicht ausgewertet). Die LDAP-Meldungen zeigt `LDAP_LOGGING: "true"` im
-Protokoll (`docker compose logs -f app`).
+Ein eigenes Admin-Konto geht immer, auch wenn das Verzeichnis ausfällt:
+
+```bash
+docker exec linkhub php artisan linkhub:admin-password
+```
+
+Der Befehl legt das Konto `admin` an oder setzt sein Passwort neu (anderer
+Name: `linkhub:admin-password name`). Das ausgegebene Passwort ist ein
+Startpasswort: Es muss bei der Anmeldung unter **Mein Konto** geändert werden,
+laufende Sitzungen des Kontos enden. Ist das Handy mit der Authenticator-App
+weg, setzt `--disable-2fa` zusätzlich die Zwei-Faktor-Anmeldung zurück:
+
+```bash
+docker exec linkhub php artisan linkhub:admin-password admin --disable-2fa
+```
+
+Verzeichniskonten lehnt der Befehl ab; ihr Passwort verwaltet das Verzeichnis.
+
+Kommen Administratoren aus dem Verzeichnis nicht hinein: Die
+Administratoren-Gruppe steht unter **Einstellungen → 3**, ersatzweise in
+`AD_GROUP_ADMINS`. Ein Gruppenname wird beim Speichern zum vollständigen DN;
+gibt es den Namen in mehreren OUs, verlangt LinkHub den DN. Prüfen, ob das
+Konto Mitglied genau dieser Gruppe ist (bei Active Directory zählen auch
+verschachtelte Gruppen). Meldungen zum Verzeichnis stehen im Protokoll
+(`docker compose logs -f app`).
 
 ### Ein Benutzername ist gesperrt
 
@@ -200,3 +249,4 @@ Jeweils mit `docker exec linkhub` davor:
 | `php artisan app:upgrade` | Versionsabgleich und Migrationen von Hand ausführen |
 | `php artisan schedule:list` | geplante Aufgaben und nächste Ausführung anzeigen |
 | `php artisan cache:clear` | Zwischenspeicher leeren (hebt auch Anmeldesperren auf) |
+| `php artisan linkhub:admin-password [name] [--disable-2fa]` | Notzugang: eigenes Admin-Konto mit Startpasswort, optional ohne Zwei-Faktor |

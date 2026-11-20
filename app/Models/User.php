@@ -24,14 +24,14 @@ class User extends Authenticatable
     public const LOCAL = 'local';
     public const DIRECTORY = 'ldap';
 
-    protected $fillable = ['username', 'name', 'email', 'guid', 'domain', 'auth_source', 'password', 'is_admin', 'is_manager', 'active', 'fox', 'last_login_at', 'mfa_policy'];
+    protected $fillable = ['username', 'name', 'email', 'guid', 'domain', 'auth_source', 'password', 'is_admin', 'is_manager', 'active', 'last_login_at', 'mfa_policy', 'must_change_password'];
     protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
     protected $casts = [
         'password'      => 'hashed',
         'is_admin'      => 'boolean',
         'is_manager'    => 'boolean',
         'active'        => 'boolean',
-        'fox'           => 'boolean',
+        'must_change_password' => 'boolean',
         'last_login_at' => 'datetime',
         'two_factor_secret'         => 'encrypted',
         'two_factor_recovery_codes' => 'encrypted:array',
@@ -59,16 +59,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Fuchs-Helfer anzeigen? Zentral abschaltbar (Admin), sonst je Person
-     *
-     * Show the fox helper? Can be switched off centrally (admin), otherwise per person
-     */
-    public function showsFox(): bool
-    {
-        return Setting::get('fox_enabled', '1') === '1' && $this->fox !== false;
-    }
-
-    /**
      * Rechte aus den Verzeichnisgruppen übernehmen (nur Verzeichniskonten).
      * Die Gruppen stehen in den Einstellungen als DN oder Gruppenname.
      *
@@ -84,6 +74,34 @@ class User extends Authenticatable
             'is_admin'   => Directory::isMemberOf($groups, $admins),
             'is_manager' => Directory::isMemberOf($groups, $managers),
         ])->save();
+    }
+
+    /**
+     * Muss die Person zuerst ihr Startpasswort ändern? Bis dahin sind nur die
+     * Konto-Seite und das Abmelden erreichbar (Middleware EnsurePasswordChanged).
+     * Gilt nur für eigene Konten und nie im Demo-Modus.
+     *
+     * Must the person change their initial password first? Until then only
+     * the account page and sign-out are reachable (middleware
+     * EnsurePasswordChanged). Applies to own accounts only, never in demo mode.
+     */
+    public function mustChangePassword(): bool
+    {
+        return (bool) $this->must_change_password && $this->isLocal() && ! config('demo.enabled');
+    }
+
+    /**
+     * Startpasswort setzen (noch nicht gespeichert): Die Person muss es bei
+     * der nächsten Anmeldung ändern. Andere Sitzungen mit dem alten Passwort
+     * beendet AuthenticateSession beim nächsten Seitenaufruf.
+     *
+     * Set an initial password (not saved yet): the person must change it at
+     * the next sign-in. AuthenticateSession ends other sessions with the old
+     * password at their next page view.
+     */
+    public function setInitialPassword(#[\SensitiveParameter] string $password): static
+    {
+        return $this->forceFill(['password' => $password, 'must_change_password' => true]);
     }
 
     /** Zufälliges Startpasswort für eigene Konten / Random initial password for own accounts */

@@ -28,8 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             \App\Http\Middleware\SetLocale::class,
-            // Merkt den Anlass einer Aktion fürs passende Lob von Rua / remembers the occasion of an action for Rua's fitting praise
-            \App\Http\Middleware\FoxOccasion::class,
+            // Passwort geändert oder zurückgesetzt: andere Sitzungen dieses Kontos beenden
+            // Password changed or reset: end the other sessions of this account
+            \App\Http\Middleware\AuthenticateSession::class,
+            // Gesperrte Konten sofort abmelden / sign out locked accounts at once
+            \App\Http\Middleware\EnsureActiveAccount::class,
         ]);
 
         // Sprache vor dem Laden der Modelle aus der URL setzen — sonst erscheint
@@ -45,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin'   => EnsureAdmin::class,
             'manager' => EnsureManager::class,
             'mfa'     => \App\Http\Middleware\EnsureMfa::class,
+            'password-changed' => \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

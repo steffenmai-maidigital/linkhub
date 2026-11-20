@@ -6,7 +6,7 @@
     <a class="btn" href="{{ route('applications.create') }}">{{ __('Neu anlegen') }}</a>
     <p class="hint">{{ __('Sichtbarkeit: ohne Zuordnung erscheint eine Applikation nur unter „Alle“. Zuordnungen an einen Bereich gelten für den ganzen Bereich, Zuordnungen an Abteilungen nur dort (und im Bereichs-Filter des zugehörigen Bereichs).') }}</p>
     <table>
-        <tr><th>{{ __('Name') }}</th><th>{{ __('Kategorie') }}</th><th>{{ __('Sichtbarkeit') }}</th><th>{{ __('Manual') }}</th><th>{{ __('Aktiv') }}</th><th></th></tr>
+        <tr><th>{{ __('Name') }}</th><th>{{ __('Kategorie') }}</th><th>{{ __('Sichtbarkeit') }}</th><th>{{ __('Anleitung') }}</th><th>{{ __('Aktiv') }}</th><th></th></tr>
         @forelse($items as $i)
             <tr>
                 <td>
@@ -22,7 +22,7 @@
                 <td style="white-space:nowrap">
                     <a href="{{ route('applications.edit', $i) }}">{{ __('Bearbeiten') }}</a>
                     <form method="post" action="{{ route('applications.destroy', $i) }}" class="inline-form"
-                          onsubmit="return confirm('{{ __('Applikation „:name“ wirklich löschen?', ['name' => $i->name]) }}')">
+                          onsubmit="return confirm(@js(__('Applikation „:name“ wirklich löschen?', ['name' => $i->name])))">
                         @csrf @method('DELETE')
                         <button class="primary small danger">{{ __('Löschen') }}</button>
                     </form>

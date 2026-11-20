@@ -89,15 +89,22 @@
     @yield('content')
 </main>
 @include('partials.footer', ['signedIn' => (bool) $u])
-@if(\App\Support\Fox::visible())
-    @include('partials.fox', ['foxPrefix' => 'lh-fox'])
-@endif
 <script>
     document.getElementById('theme-toggle').addEventListener('click', function () {
         const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
         try { localStorage.setItem('theme', next); } catch (e) {}
     });
+    // Reste des entfernten Fuchs-Helfers aus dem Browser räumen (lh-fox-…, älter lh-fuchs-…)
+    // Clear leftovers of the removed fox helper from the browser (lh-fox-…, older lh-fuchs-…)
+    try {
+        [localStorage, sessionStorage].forEach(function (store) {
+            for (let i = store.length - 1; i >= 0; i--) {
+                const key = store.key(i);
+                if (key && /^lh-(fox|fuchs)-/.test(key)) store.removeItem(key);
+            }
+        });
+    } catch (e) {}
     // Aufklappmenüs (Sprache) schließen, wenn man daneben tippt
     // Close drop-down menus (language) when tapping outside them
     document.addEventListener('click', function (e) {

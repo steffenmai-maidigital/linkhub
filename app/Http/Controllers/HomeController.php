@@ -71,6 +71,9 @@ class HomeController extends Controller
             'activeDept' => $activeDept,
             'groups'     => $groups,
             'total'      => $applications->count(),
+            // Leerer Zustand: gar nichts gepflegt oder nur diese Auswahl leer?
+            // Empty state: nothing maintained at all or only this selection empty?
+            'filtered'   => (bool) $activeArea,
         ]);
     }
 }

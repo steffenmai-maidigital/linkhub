@@ -64,16 +64,27 @@ class ApplicationController extends Controller
 
     private function validated(Request $request): array
     {
+        // Adressen, die im Browser Code statt einer Seite öffnen, nie als Link
+        // Never addresses that open code instead of a page in the browser as a link
+        $noScript = 'not_regex:/^\s*(javascript|vbscript|data|blob):/i';
+
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:120'],
             'name_en'     => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:1000'],
             'description_en' => ['nullable', 'string', 'max:1000'],
-            'url'         => ['required', 'url', 'max:500'],
-            'manual_url'  => ['nullable', 'url', 'max:500'],
+            'url'         => ['required', 'url', 'max:500', $noScript],
+            'manual_url'  => ['nullable', 'url', 'max:500', $noScript],
             'category_id' => ['nullable', 'exists:categories,id'],
             'sort_order'  => ['nullable', 'integer', 'min:0', 'max:65000'],
+            // Sichtbarkeit: nur vorhandene Bereiche und Abteilungen (sonst Fehler 500 beim Speichern)
+            // Visibility: existing areas and departments only (otherwise error 500 on saving)
+            'areas'         => ['nullable', 'array'],
+            'areas.*'       => ['integer', 'exists:areas,id'],
+            'departments'   => ['nullable', 'array'],
+            'departments.*' => ['integer', 'exists:departments,id'],
         ]);
+        unset($data['areas'], $data['departments']);
 
         $data['sort_order'] = $data['sort_order'] ?? 0;
         $data['active'] = $request->boolean('active');

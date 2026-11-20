@@ -17,7 +17,7 @@
                 <label class="check"><input type="radio" name="{{ $type }}_type" value="link" @checked($typeChoice === 'link')> {{ __('Auf eine vorhandene Seite verlinken (z. B. Firmen-Homepage)') }}</label>
             </div>
             <div class="legal-text">
-                <textarea name="{{ $type }}_text" id="{{ $type }}_text" rows="10" maxlength="{{ $R::MAX }}"
+                <textarea name="{{ $type }}_text" id="{{ $type }}_text" rows="10" maxlength="{{ $R::MAX }}" aria-label="{{ $R::title($type) }}"
                           placeholder="{{ $type === 'imprint' ? __('Name und Anschrift der Firma, vertreten durch …, Telefon, E-Mail, Registereintrag …') : __('Wer verantwortlich ist, welche Daten verarbeitet werden, wo sie liegen, wie lange, Rechte der Betroffenen …') }}">{{ old($type . '_text', $R::text($type)) }}</textarea>
                 <p class="hint">{{ __('Einfacher Text: Leerzeile = neuer Absatz, eine Zeile mit „# “ davor = Überschrift. Internet- und E-Mail-Adressen werden automatisch zu Links.') }}</p>
                 @if($type === 'privacy')

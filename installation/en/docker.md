@@ -35,7 +35,9 @@ are stored there.
 
 ## 2. Start it for a trial
 
-Out of the box LinkHub runs in **demo mode**: without Active Directory, with
+LinkHub ships in normal operation (`DEMO_MODE: "false"`). To try it out, set
+`DEMO_MODE: "true"` in `docker-compose.yml`; LinkHub then runs in **demo
+mode**: without Active Directory, with
 sample data and fixed demo accounts. The portal itself can be used without logging in; logging in is only needed for maintenance.
 
 ```bash
@@ -89,13 +91,24 @@ If you tested in demo mode before and want to start with an empty database,
 set `FRESH_DB: "1"` for **one** start and change it straight back to
 `FRESH_DB: "0"` – otherwise the database is wiped on every start.
 
+If the demo data stays, `admin/admin` and `manager/manager` no longer work in
+normal operation: on the first start without demo mode `admin` gets a new
+initial password (in the container log, `docker compose logs app`; or the
+value of `ADMIN_PASSWORD`), `manager` gets a new password and is locked. An
+administrator can unlock it under **Users**.
+
 ### 3.3 Set it up in the web interface
 
-1. Log in at the top right with an account from the administrators group.
-   User accounts are created automatically on first login; roles come from
-   the AD groups on every login (direct memberships only).
-2. Open **Settings**: company name, logo and colours, the two AD groups and
-   backup retention.
+1. Log in at the top right as `admin` with the initial password from the
+   container log (or `ADMIN_PASSWORD`) and set your own password under
+   **My account**. An initial password from the log must be changed; until
+   then only **My account** is available. Further own accounts are created
+   under **Users**; they change their initial password at the first sign-in
+   too. With a
+   directory, accounts are created automatically on first login; roles come
+   from the groups on every login (nested groups with Active Directory).
+2. Open **Settings**: company name, logo and colours, sign-in (directory,
+   two-factor), roles from groups, backup retention, imprint and privacy.
 3. **Structure:** create areas, departments and categories.
 4. **Applications:** enter the applications with link, short description and
    optional manual link and assign them to areas or departments. Without an
@@ -120,6 +133,7 @@ reverse proxy should be reachable.
 - [ ] `TRUSTED_PROXIES` contains the reverse proxy's address (default: internal networks)
 - [ ] after the first night there is a backup in the `backups` folder
 - [ ] the `backups` folder and `docker-compose.yml` are also backed up elsewhere (e.g. to a second device)
+- [ ] only administrators can read the `backups` folder and its copies (the backups contain the app key)
 - [ ] imprint and privacy notice are set under **Settings**, if required
 
 ## Trying it without Compose

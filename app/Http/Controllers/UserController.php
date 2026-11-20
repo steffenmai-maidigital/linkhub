@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\AuthenticateSession;
 use App\Models\User;
 use App\Support\Directory;
 use Illuminate\Http\Request;
@@ -42,12 +43,15 @@ class UserController extends Controller
         $data = $this->validated($request);
         $password = $data['password'] ?: User::initialPassword();
 
+        // Das Startpasswort kennt der Administrator: Die Person ändert es bei der ersten Anmeldung
+        // The administrator knows the initial password: the person changes it at the first sign-in
         $user = User::create([
             'username'    => $data['username'],
             'name'        => $data['name'],
             'email'       => $data['email'] ?? null,
             'auth_source' => User::LOCAL,
             'password'    => $password,
+            'must_change_password' => true,
             'is_admin'    => $request->boolean('is_admin'),
             'is_manager'  => $request->boolean('is_manager') || $request->boolean('is_admin'),
             'active'      => true,
@@ -61,7 +65,16 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
-        $data = $this->validated($request, $user);
+        // Verzeichniskonten: Name und Benutzername kommen aus dem Verzeichnis und
+        // dürfen Zeichen enthalten, die eigene Konten nicht haben (z. B. Umlaute);
+        // hier zählen nur Sperre und Zwei-Faktor-Ausnahme
+        // Directory accounts: name and user name come from the directory and may
+        // contain characters own accounts do not have (e.g. umlauts); only the
+        // lock and the two-factor exception count here
+        $keepSession = false;
+        $data = $user->isLocal()
+            ? $this->validated($request, $user)
+            : $request->validate(['mfa_policy' => ['nullable', 'in:required,optional,off']]) + ['mfa_policy' => null];
 
         if ($user->isLocal()) {
             if ($user->is($request->user()) && ! $request->boolean('is_admin')) {
@@ -75,7 +88,18 @@ class UserController extends Controller
                 'is_manager' => $request->boolean('is_manager') || $request->boolean('is_admin'),
             ]);
             if ($data['password']) {
-                $user->password = $data['password'];
+                // Eigenes Konto: selbst gewählt, diese Sitzung bleibt. Fremdes Konto:
+                // Startpasswort, die Person ändert es bei der nächsten Anmeldung.
+                // Andere Sitzungen mit dem alten Passwort enden (AuthenticateSession).
+                // Own account: chosen oneself, this session stays. Another account:
+                // initial password, the person changes it at the next sign-in.
+                // Other sessions with the old password end (AuthenticateSession).
+                $keepSession = $user->is($request->user());
+                if ($keepSession) {
+                    $user->forceFill(['password' => $data['password'], 'must_change_password' => false]);
+                } else {
+                    $user->setInitialPassword($data['password']);
+                }
                 \Illuminate\Support\Facades\RateLimiter::clear('sign-in:' . $user->username);
             }
         }
@@ -84,6 +108,9 @@ class UserController extends Controller
         }
         $user->mfa_policy = $data['mfa_policy'] ?: null;
         $user->save();
+        if ($keepSession) {
+            AuthenticateSession::keep($request, $user);
+        }
         activity('Benutzer')->causedBy($request->user())->performedOn($user)->log('Konto geändert');
 
         return redirect()->route('users.index')->with('ok', __('Konto gespeichert.'));
@@ -92,8 +119,15 @@ class UserController extends Controller
     public function resetPassword(Request $request, User $user)
     {
         abort_unless($user->isLocal(), 403, 'Verzeichniskonten haben hier kein Passwort.');
+        // Das eigene Konto nicht: Die Sitzung endete, bevor das neue Passwort zu sehen ist
+        // Not one's own account: the session would end before the new password is shown
+        if ($user->is($request->user())) {
+            return back()->withErrors(['user' => __('Ihr eigenes Passwort ändern Sie unter „Mein Konto“.')]);
+        }
+        // Neues Startpasswort: bei der nächsten Anmeldung ändern; alle Sitzungen dieses Kontos enden
+        // New initial password: change it at the next sign-in; all sessions of this account end
         $password = User::initialPassword();
-        $user->forceFill(['password' => $password])->save();
+        $user->setInitialPassword($password)->save();
         \Illuminate\Support\Facades\RateLimiter::clear('sign-in:' . $user->username);
         activity('Benutzer')->causedBy($request->user())->performedOn($user)->log('Passwort zurückgesetzt');
 
